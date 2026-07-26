@@ -1,0 +1,18 @@
+[tool.ruff]
+line-length = 150
+target-version = "py312"
+src = ["apps/api", "workers", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "apps/api/tests", "workers/tests"]
+pythonpath = ["apps/api", "workers"]
+asyncio_mode = "auto"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+plugins = ["pydantic.mypy"]

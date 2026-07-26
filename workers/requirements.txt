@@ -1,0 +1,4 @@
+celery==5.4.0
+pydantic==2.8.2
+pydantic-settings==2.4.0
+redis==5.0.8

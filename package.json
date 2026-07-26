@@ -1,0 +1,31 @@
+{
+  "name": "wildfire-intelligence-platform",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "npm@10.8.2",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "workspaces": [
+    "apps/web",
+    "packages/*"
+  ],
+  "scripts": {
+    "install:all": "npm install --workspaces && node scripts/setup-python.mjs",
+    "dev": "node scripts/dev.mjs",
+    "dev:api": "node scripts/python.mjs -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --app-dir apps/api",
+    "dev:web": "npm run dev --workspace @wip/web",
+    "dev:docker": "node scripts/check-docker.mjs && docker compose up --build",
+    "build": "npm run build --workspace @wip/web",
+    "lint": "npm run lint --workspace @wip/web && node scripts/python.mjs -m ruff check apps workers tests",
+    "format": "prettier --check . && node scripts/python.mjs -m ruff format --check apps workers tests",
+    "typecheck": "npm run typecheck --workspace @wip/web && node scripts/python.mjs -m mypy apps/api workers",
+    "test": "npm run test --workspace @wip/web && node scripts/python.mjs -m pytest",
+    "migrate": "node scripts/check-docker.mjs && docker compose run --rm api alembic upgrade head",
+    "migrate:local": "node scripts/python.mjs --cwd apps/api -m alembic upgrade head",
+    "reset-db": "node scripts/check-docker.mjs && docker compose down -v && docker compose up -d postgres redis minio && docker compose run --rm api alembic upgrade head"
+  },
+  "devDependencies": {
+    "prettier": "3.3.3"
+  }
+}

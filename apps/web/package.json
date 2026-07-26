@@ -1,0 +1,40 @@
+{
+  "name": "@wip/web",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0 --port 3000",
+    "build": "next build",
+    "start": "next start --hostname 0.0.0.0 --port 3000",
+    "lint": "eslint src --ext .ts,.tsx",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "5.101.4",
+    "@wip/config": "0.1.0",
+    "@wip/shared-types": "0.1.0",
+    "@wip/ui": "0.1.0",
+    "maplibre-gl": "4.5.0",
+    "next": "15.5.22",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "zustand": "4.5.4"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "6.4.8",
+    "@testing-library/dom": "10.4.0",
+    "@testing-library/react": "16.3.2",
+    "@types/node": "22.5.0",
+    "@types/react": "19.0.0",
+    "@types/react-dom": "19.0.0",
+    "autoprefixer": "10.4.20",
+    "eslint": "8.57.0",
+    "eslint-config-next": "15.5.22",
+    "jsdom": "24.1.1",
+    "postcss": "8.4.41",
+    "tailwindcss": "3.4.10",
+    "typescript": "5.5.4",
+    "vitest": "2.0.5"
+  }
+}

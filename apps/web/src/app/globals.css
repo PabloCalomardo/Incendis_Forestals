@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --background: #f7f7f4;
+  --foreground: #17201b;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+a:focus-visible,
+button:focus-visible {
+  outline: 3px solid #1d5fd0;
+  outline-offset: 3px;
+}
