@@ -23,6 +23,7 @@
     "test": "npm run test --workspace @wip/web && node scripts/python.mjs -m pytest",
     "migrate": "node scripts/check-docker.mjs && docker compose run --rm api alembic upgrade head",
     "migrate:local": "node scripts/python.mjs --cwd apps/api -m alembic upgrade head",
+    "roads:import": "node scripts/check-docker.mjs && docker compose --profile tools run --rm cnig-loader",
     "reset-db": "node scripts/check-docker.mjs && docker compose down -v && docker compose up -d postgres redis minio && docker compose run --rm api alembic upgrade head"
   },
   "devDependencies": {

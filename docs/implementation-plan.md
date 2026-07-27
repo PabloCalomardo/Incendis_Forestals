@@ -1,5 +1,23 @@
 # Pla d'implementacio executable
 
+> **Model historic substituit el 27-07-2026.** Les fases 1-7 documenten la construccio inicial. El treball actual es regeix per fites de producte: primer un Dashboard Civil publicable i, despres, el Dashboard per a Professionals. Consulta `docs/project-status.md` per a l'estat vigent.
+
+## Full de ruta vigent
+
+### Fita 1: Dashboard Civil publicable
+
+- estabilitzar mapa, capes, filtres, popups i experiencia responsive;
+- completar fonts publiques necessaries i deixar clares cobertura, retard i limitacions;
+- millorar rendiment de frontend, API i consultes geoespacials;
+- validar accessibilitat, seguretat publica, observabilitat i desplegament;
+- executar proves funcionals, visuals i de carrega abans de declarar la versio publicable.
+
+### Fita 2: Dashboard per a Professionals
+
+Comenca nomes despres d'acceptar la Fita 1. Recupera els requisits historics d'autenticacio, RBAC, auditoria, eines GIS, prediccions, routing operatiu, temps real i notificacions. El portal professional no reutilitzara permisos ni dades sensibles del portal Civil sense controls explicits.
+
+La resta d'aquest document es conserva com a context historic i mapa de dependencies, no com una cua automatica de fases.
+
 ## Resum de requisits principals
 
 La plataforma ha d'integrar dades d'incendis, meteorologia, carreteres, cartografia i models predictius. Ha de conservar dades originals, normalitzar-les, versionar-les, calcular confiança explicable i exposar-les a dos portals: Civil, public i segur; Bomber, autenticat i operatiu. Les prediccions de foc, fum i routing son resultats estimats, traçables i mai equivalents a dades oficials.
@@ -16,7 +34,7 @@ Fonts previstes:
 - IGN/CNIG
 - OpenStreetMap
 
-## Estat actual del repositori
+## Estat inicial del repositori (historic)
 
 - No hi ha codi executable.
 - No hi ha framework frontend o backend inicialitzat.
@@ -25,7 +43,7 @@ Fonts previstes:
 - No hi ha tests, CI/CD ni migracions.
 - `.gitignore`, `EspecificacioProjecte.md` i `PlaDimplementacio.md` encara no estan versionats segons `git status`.
 
-## Ordre exacte d'implementacio
+## Ordre original d'implementacio (historic)
 
 1. Bootstrap del monorepo:
    Crear `apps/web`, `apps/api`, workers, paquets compartits, Docker Compose, scripts, lint, typecheck, tests i documentacio inicial.

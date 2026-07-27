@@ -4,8 +4,8 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.enums import (
-    IngestionRunStatus,
     IncidentStatus,
+    IngestionRunStatus,
     ProvenanceType,
     RoadIncidentKind,
     UserRole,

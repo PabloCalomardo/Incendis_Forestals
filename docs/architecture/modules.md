@@ -63,8 +63,12 @@ flowchart LR
 Frontend Civil:
 Interficie publica per mapa, incidents, avisos, evacuacions, restriccions, carreteres, risc i fum simplificat. Ha de prioritzar claredat, accessibilitat i evitar confusio entre dades oficials i estimades.
 
+Es el modul prioritari fins assolir una versio publicable.
+
 Frontend Bomber:
 Interficie operativa protegida amb dashboard, mapa tecnic, control temporal, fonts, retard de dades, prediccions i routing. No comparteix permisos amb el portal Civil.
+
+El seu desenvolupament queda ajornat fins a l'acceptacio explicita del Dashboard Civil publicable.
 
 API:
 Superficie HTTP amb endpoints publics i interns, validacio, errors consistents, correlation IDs, cache i OpenAPI. Ha de filtrar informacio sensible segons portal i rol.

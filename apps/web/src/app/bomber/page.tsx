@@ -13,8 +13,8 @@ export default function BomberPage() {
         <aside className="rounded-lg border border-[#2a333c] bg-[#151b20] p-4">
           <h2 className="text-lg font-semibold">Fonts i readiness</h2>
           <p className="mt-2 text-sm text-[#b8c0c7]">
-            Autenticacio i RBAC s'implementaran a la fase corresponent. Aquesta pantalla separa
-            l'espai operatiu sense exposar funcionalitats sensibles.
+            La ingesta ja prepara fonts operatives. Autenticacio, permisos i capes professionals
+            arribaran a la fase del portal Bomber.
           </p>
         </aside>
         <MapShell portal="bomber" />

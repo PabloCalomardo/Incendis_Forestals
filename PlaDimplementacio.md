@@ -1,5 +1,18 @@
 # Prompts d’implementació per a Codex
 
+## Canvi de model de desenvolupament (27-07-2026)
+
+El desenvolupament seqüencial per fases queda **tancat**. Les fases 1 a 7 es conserven en aquest document com a registre històric de la construcció inicial, però ja no determinen l'ordre de treball.
+
+A partir d'ara el projecte avança per fites de producte:
+
+1. **Dashboard Civil publicable**: completar, polir, provar i preparar per desplegament tota l'experiència pública.
+2. **Dashboard per a Professionals**: només començar quan la versió Civil tingui criteris de publicació complerts. Inclourà autenticació, permisos i eines operatives.
+
+Fins a tancar la primera fita, qualsevol tasca nova ha de prioritzar el portal Civil, la qualitat de les dades públiques, el rendiment, l'accessibilitat i la preparació de producció. No s'ha d'avançar automàticament cap fase ni implementar el portal professional per ordre numèric.
+
+L'estat consolidat i els pendents vigents es documenten a `docs/project-status.md`. `EspecificacioProjecte.md` continua sent la font de requisits del producte.
+
 ## Regla d’ús
 
 Abans de començar, desa l’especificació completa del projecte al fitxer:
@@ -358,6 +371,8 @@ En finalitzar, mostra:
 
 # Fase 3 — Framework d’ingestió i connector NASA FIRMS
 
+Estat: completat
+
 ```text
 Llegeix EspecificacioProjecte.md i identifica totes les fonts externes previstes.
 
@@ -457,6 +472,8 @@ Criteris d’acceptació:
 
 # Fase 4 — Connectors meteorològics i geogràfics
 
+Estat: completat
+
 ```text
 Llegeix EspecificacioProjecte.md i la documentació d’integracions existent.
 
@@ -548,6 +565,8 @@ Criteris d’acceptació:
 ---
 
 # Fase 5 — Normalització, fusió i puntuació de confiança
+
+Estat: completat
 
 ```text
 Llegeix EspecificacioProjecte.md, especialment els principis de desinformació, retard, confiança i separació entre dades oficials i estimades.
@@ -646,6 +665,8 @@ Criteris d’acceptació:
 
 # Fase 6 — API Civil
 
+Estat: completat
+
 ```text
 Llegeix EspecificacioProjecte.md i implementa exclusivament l’API destinada al portal Civil.
 
@@ -733,6 +754,8 @@ Criteris d’acceptació:
 ---
 
 # Fase 7 — Portal Civil complet
+
+Estat: completat
 
 ```text
 Llegeix EspecificacioProjecte.md i la documentació de l’API Civil.
@@ -834,6 +857,8 @@ Criteris d’acceptació:
 ---
 
 # Fase 8 — Autenticació, permisos i Portal Bomber base
+
+Estat: ajornada fins que el Dashboard Civil sigui publicable
 
 ```text
 Llegeix EspecificacioProjecte.md i implementa la base segura del portal Bomber.

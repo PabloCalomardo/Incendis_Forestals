@@ -1,0 +1,18 @@
+[
+  {
+    "elaborado": "2026-07-26T08:00:00+00:00",
+    "nombre": "Madrid",
+    "provincia": "Madrid",
+    "prediccion": {
+      "dia": [
+        {
+          "fecha": "2026-07-26T00:00:00+00:00",
+          "temperatura": [{"periodo": "12", "value": "34"}],
+          "precipitacion": [{"periodo": "12", "value": "0"}],
+          "humedadRelativa": [{"periodo": "12", "value": "18"}],
+          "vientoAndRachaMax": [{"periodo": "12", "direccion": "W", "velocidad": "20", "rachaMax": "38"}]
+        }
+      ]
+    }
+  }
+]

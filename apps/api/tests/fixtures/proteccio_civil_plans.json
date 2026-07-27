@@ -1,0 +1,14 @@
+[
+  {
+    ":id": "row-info-cat",
+    "plaacronim": "INFOCAT",
+    "planom": "INFOCAT",
+    "plafase": "ALERTA",
+    "plaactivat": "SI",
+    "fasedatahora": "10/07/2026 13:17",
+    "comunicatpdf": {
+      "url": "https://documents.dadesobertes.gencat.cat/cecat/docs/I-124785.pdf"
+    },
+    "descripcio": "INFOCAT Alerta"
+  }
+]

@@ -10,8 +10,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.domain.base import Base, IdMixin, TimestampMixin
 from app.domain.enums import (
-    IngestionRunStatus,
     IncidentStatus,
+    IngestionRunStatus,
     ProvenanceType,
     RoadIncidentKind,
     UserRole,
@@ -303,3 +303,44 @@ class AuditEvent(Base, IdMixin, TimestampMixin):
     ip_address: Mapped[str | None] = mapped_column(String(80), nullable=True)
     user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
     details: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)
+
+
+class ConfidenceAssessment(Base, IdMixin, TimestampMixin):
+    __tablename__ = "confidence_assessments"
+
+    resource_type: Mapped[str] = mapped_column(String(120), nullable=False)
+    resource_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    algorithm_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    calculated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    category: Mapped[str] = mapped_column(String(40), nullable=False)
+    factors: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)
+    penalties: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)
+    warnings: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
+
+
+class DataConflict(Base, IdMixin, TimestampMixin):
+    __tablename__ = "data_conflicts"
+
+    conflict_type: Mapped[str] = mapped_column(String(120), nullable=False)
+    resource_type: Mapped[str] = mapped_column(String(120), nullable=False)
+    resource_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    conflicting_resource_type: Mapped[str] = mapped_column(String(120), nullable=False)
+    conflicting_resource_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    severity: Mapped[str] = mapped_column(String(40), nullable=False)
+    detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    explanation: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)
+
+
+class ObservationLink(Base, IdMixin, TimestampMixin):
+    __tablename__ = "observation_links"
+
+    resource_type: Mapped[str] = mapped_column(String(120), nullable=False)
+    resource_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    related_resource_type: Mapped[str] = mapped_column(String(120), nullable=False)
+    related_resource_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    relation_kind: Mapped[str] = mapped_column(String(120), nullable=False)
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    explanation: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)

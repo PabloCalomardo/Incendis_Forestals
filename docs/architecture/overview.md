@@ -72,5 +72,5 @@ No s'ha detectat `Structure.md` al disc, tot i apareixer com a pestanya oberta a
 ## Conflictes detectats
 
 - L'especificacio descriu una arquitectura completa, pero el repositori encara no conte cap implementacio.
-- El pla demana executar fases seqüencialment; per tant aquesta preparacio no ha de crear funcionalitats de negoci.
+- El model seqüencial per fases es conserva nomes com a registre historic. La dependencia vigent es de producte: primer Dashboard Civil publicable i despres Dashboard per a Professionals.
 - Les APIs externes enumerades requereixen documentacio oficial, condicions d'us i claus que encara no existeixen al repositori.

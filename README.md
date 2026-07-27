@@ -2,6 +2,10 @@
 
 Plataforma per integrar informacio d'incendis forestals, conservar-ne la procedencia i servir-la a dos portals: Civil i Bomber.
 
+## Prioritat actual
+
+El desenvolupament per fases ha finalitzat. Primer es completara una versio publicable del Dashboard Civil (`/civil`). El Dashboard per a Professionals queda ajornat fins que la versio Civil sigui acceptada. L'estat consolidat es a `docs/project-status.md`.
+
 ## Serveis
 
 - `frontend`: Next.js App Router a `http://localhost:3000`.
@@ -112,7 +116,7 @@ Les variables estan documentades a `.env.example`. Les claus reals no s'han de c
 
 ## Estat
 
-Fase 1 crea una base executable. No inclou encara dades reals d'incendis, connectors externs, autenticacio OIDC ni models predictius.
+La plataforma executable inclou el Dashboard Civil, API publica, ingestio real NASA FIRMS, AEMET, IGN, DGT/NAP DATEX, Proteccio Civil/CECAT i xarxa viaria CNIG local a PostGIS. El portal professional, autenticacio OIDC i eines operatives avancades continuen pendents.
 
 ## Preparacio GitHub
 

@@ -34,6 +34,6 @@ class Repository(Generic[ModelT]):
     async def soft_delete(self, entity: ModelT) -> ModelT:
         if not hasattr(entity, "deleted_at"):
             raise TypeError(f"{type(entity).__name__} does not support soft delete")
-        entity.deleted_at = datetime.now(UTC)  # type: ignore[attr-defined]
+        entity.deleted_at = datetime.now(UTC)
         await self.session.flush()
         return entity

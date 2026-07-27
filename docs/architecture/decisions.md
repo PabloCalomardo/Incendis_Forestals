@@ -124,3 +124,33 @@ Les entitats principals incorporen `deleted_at`.
 
 Motiu:
 Permet auditar, reprocessar i evitar perdua d'originals. La politica exacta de retencio queda pendent de fases de seguretat, backups i hardening.
+
+## ADR-013: Prioritzar el producte Civil abans del professional
+
+Estat: acceptada el 27-07-2026
+
+Decisio:
+El desenvolupament deixa de seguir fases numeriques. S'ha de completar i acceptar una versio publicable del Dashboard Civil abans de començar el Dashboard per a Professionals.
+
+Motiu:
+Permet estabilitzar primer la proposta publica, les dades, el rendiment i el desplegament, i evita repartir esforç entre dues experiencies amb requisits de seguretat molt diferents.
+
+## ADR-014: Xarxa viaria estatal CNIG local
+
+Estat: acceptada el 27-07-2026
+
+Decisio:
+La geometria de restriccions DATEX es resol primer contra IGR-RT de CNIG importat localment a PostGIS. El nom oficial i els PK delimiten un cami dins d'un graf format exclusivament pels trams de la mateixa carretera. DGT PK, Overpass i OSRM son fallbacks.
+
+Motiu:
+Evita linies rectes, desviaments per carreteres veines, limits de peticions i processament manual carretera per carretera. Les dades pesades queden fora de Git i es carreguen amb `npm run roads:import`.
+
+## ADR-015: El viewport no provoca recarrega de dades
+
+Estat: acceptada el 27-07-2026
+
+Decisio:
+El pan i zoom de MapLibre actualitzen `lng`, `lat` i `z` amb `history.replaceState`, sense navegacio de Next.js. Les consultes de capes nomes depenen dels filtres de dades i tenen una finestra de cache de cinc minuts.
+
+Motiu:
+El viewport es estat de presentacio. Remuntar la ruta o tornar a consultar la mateixa cobertura en cada `moveend` empitjora latencia, carrega de l'API i experiencia d'usuari sense aportar dades noves.

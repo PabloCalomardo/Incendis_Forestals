@@ -17,13 +17,14 @@
     "@wip/ui": "0.1.0",
     "maplibre-gl": "4.5.0",
     "next": "15.5.22",
+    "polygon-clipping": "^0.15.7",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "zustand": "4.5.4"
   },
   "devDependencies": {
-    "@testing-library/jest-dom": "6.4.8",
     "@testing-library/dom": "10.4.0",
+    "@testing-library/jest-dom": "6.4.8",
     "@testing-library/react": "16.3.2",
     "@types/node": "22.5.0",
     "@types/react": "19.0.0",

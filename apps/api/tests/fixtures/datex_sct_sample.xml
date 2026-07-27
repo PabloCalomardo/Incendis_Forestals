@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<d2LogicalModel xmlns="http://datex2.eu/schema/1_0/1_0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <payloadPublication xsi:type="_0:SituationPublication" xmlns:_0="http://datex2.eu/schema/1_0/1_0">
+    <_0:situation id="GUID-1">
+      <_0:situationRecord xsi:type="_0:MaintenanceWorks" id="GUID-1-1">
+        <_0:situationRecordCreationTime>2026-07-26T10:00:00+02:00</_0:situationRecordCreationTime>
+        <_0:validity>
+          <_0:validityStatus>active</_0:validityStatus>
+          <_0:validityTimeSpecification>
+            <_0:overallStartTime>2026-07-26T10:00:00+02:00</_0:overallStartTime>
+          </_0:validityTimeSpecification>
+        </_0:validity>
+        <_0:groupOfLocations>
+          <_0:locationContainedInGroup>
+            <_0:tpeglinearLocation>
+              <_0:from>
+                <_0:pointCoordinates>
+                  <_0:latitude>41.55615</_0:latitude>
+                  <_0:longitude>2.0473378</_0:longitude>
+                </_0:pointCoordinates>
+              </_0:from>
+              <_0:to>
+                <_0:pointCoordinates>
+                  <_0:latitude>41.553165</_0:latitude>
+                  <_0:longitude>2.0589154</_0:longitude>
+                </_0:pointCoordinates>
+              </_0:to>
+              <_0:descriptor>
+                <_0:value>N-150</_0:value>
+                <_0:tpegDescriptorType>linkName</_0:tpegDescriptorType>
+              </_0:descriptor>
+            </_0:tpeglinearLocation>
+          </_0:locationContainedInGroup>
+        </_0:groupOfLocations>
+        <_0:roadMaintenanceType>roadworks</_0:roadMaintenanceType>
+        <_0:roadName>N-150</_0:roadName>
+        <_0:roadNumber>N-150</_0:roadNumber>
+      </_0:situationRecord>
+    </_0:situation>
+  </payloadPublication>
+</d2LogicalModel>

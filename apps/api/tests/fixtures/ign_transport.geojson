@@ -1,0 +1,33 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "road.1",
+      "properties": {
+        "localId": "IGN-ROAD-1",
+        "name": "N-340",
+        "nationalRoadCode": "N-340",
+        "formOfWay": "singleCarriageway"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [[-3.7, 40.4], [-3.6, 40.45]]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "road.1",
+      "properties": {
+        "localId": "IGN-ROAD-1",
+        "name": "N-340",
+        "nationalRoadCode": "N-340",
+        "formOfWay": "singleCarriageway"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [[-3.7, 40.4], [-3.6, 40.45]]
+      }
+    }
+  ]
+}

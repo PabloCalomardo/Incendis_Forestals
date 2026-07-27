@@ -16,3 +16,4 @@ python_version = "3.12"
 strict = true
 ignore_missing_imports = true
 plugins = ["pydantic.mypy"]
+exclude = ["apps/api/alembic/versions/"]

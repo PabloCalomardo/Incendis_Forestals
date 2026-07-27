@@ -1,0 +1,41 @@
+{
+  "version": 0.6,
+  "elements": [
+    {
+      "type": "way",
+      "id": 1001,
+      "tags": {
+        "highway": "track",
+        "surface": "gravel",
+        "width": "3.5",
+        "access": "forestry",
+        "maxweight": "7.5",
+        "incline": "6%",
+        "tracktype": "grade2",
+        "smoothness": "bad"
+      },
+      "geometry": [
+        {"lat": 41.1, "lon": 1.1},
+        {"lat": 41.2, "lon": 1.2}
+      ]
+    },
+    {
+      "type": "way",
+      "id": 1001,
+      "tags": {
+        "highway": "track",
+        "surface": "gravel",
+        "width": "3.5",
+        "access": "forestry",
+        "maxweight": "7.5",
+        "incline": "6%",
+        "tracktype": "grade2",
+        "smoothness": "bad"
+      },
+      "geometry": [
+        {"lat": 41.1, "lon": 1.1},
+        {"lat": 41.2, "lon": 1.2}
+      ]
+    }
+  ]
+}

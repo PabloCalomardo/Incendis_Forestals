@@ -20,3 +20,11 @@ def test_version_returns_project_metadata() -> None:
 
     assert response.status_code == 200
     assert response.json()["name"] == "wildfire-intelligence-platform"
+
+
+def test_internal_ingestion_status_is_not_public() -> None:
+    client = TestClient(create_app())
+
+    response = client.get("/internal/ingestion/firms/status")
+
+    assert response.status_code == 404

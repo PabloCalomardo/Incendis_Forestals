@@ -1,0 +1,32 @@
+{
+  "situationsRecords": [
+    {
+      "situationId": "3343801",
+      "id": "5684393",
+      "tipoVialidad": "Carreteras cortadas",
+      "subtipoVialidad": "Carretera cortada",
+      "fechaInicio": "2023-11-21T18:50:51",
+      "estado": "active",
+      "fuente": "DGT",
+      "causa": "Obras",
+      "subcausa": "Obra",
+      "carretera": "A-8005",
+      "sentido": "both",
+      "pkIni": 0.0,
+      "pkFin": 2.16,
+      "cAutonomaIni": "Andalucía",
+      "provinciaIni": "Sevilla",
+      "municipioIni": "Sevilla",
+      "geometria": "{\"type\":\"MultiLineString\",\"coordinates\":[[[-5.96623,37.43413],[-5.96623,37.43465],[-5.96621,37.4347]],[[-5.96704,37.43452],[-5.96623,37.43465]]]}"
+    },
+    {
+      "situationId": "point-record",
+      "id": "point-record",
+      "tipoVialidad": "Otras vialidades",
+      "fechaInicio": "2026-07-26T10:00:00",
+      "fuente": "DGT",
+      "carretera": "N-1",
+      "geometria": "{\"type\":\"Point\",\"coordinates\":[-3.1,40.1]}"
+    }
+  ]
+}
