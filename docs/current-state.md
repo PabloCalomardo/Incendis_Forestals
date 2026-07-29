@@ -9,7 +9,8 @@ Aquest document es la font canonica per reprendre el desenvolupament. L'especifi
 
 Completar i estabilitzar el Dashboard Civil public abans de reprendre el portal professional. L'aplicacio integra
 incendis, deteccions satel·litaries, perimetres cremats, avisos d'emergencia i restriccions viaries amb procedencia i
-confiança visibles.
+confiança visibles. Tambe mostra aeronaus publiques o contractades d'emergencia quan estan volant i apareixen en fonts
+ADS-B publiques.
 
 ## Pila executable
 
@@ -35,9 +36,24 @@ geometria quan la font no dona una ubicacio oficial prou precisa.
   hashtags, resum curt i l'accio per anar al detall.
 - Les publicacions X/Nitter independents es mostren en blau; un incendi canonic EFFIS conserva el color d'incendi.
 - `Punts FIRMS` esta desactivat inicialment. Les arees FIRMS i la resta de capes continuen actives.
+- `Aeronaus` consulta OpenSky i Airplanes.live cada 20 segons quan la capa esta activa. Les aeronaus es dibuixen per
+  sobre de restriccions, perimetres i deteccions.
+- El refresc d'aeronaus no obre el popup central de carrega; la capcalera del mapa mostra `Refrescant Aeronaus`.
 - Clicar una carretera o restriccio conserva la seva geometria i enfoca el tram. Un avis sense geometria ni `bbox`
   no modifica el zoom.
 - El viewport es conserva a la URL sense provocar refetch de dades en cada moviment.
+
+## Aeronaus d'emergencia
+
+- `apps/api/app/data/emergency_aircraft_spain.json` conte el dataset OSINT local derivat del full public aportat.
+- Estat actual: 122 aeronaus candidates i 61 `icao24` verificats o completats amb fonts publiques.
+- `GET /civil/aircraft/live` creua el dataset amb OpenSky `/states/all` i Airplanes.live `/hex`/`/reg`.
+- El matching prioritza `icao24`; si no existeix, prova callsign o matricula normalitzada i marca l'advertiment
+  corresponent.
+- Airplanes.live pot aportar `rr_lat`/`rr_lon`; aquestes posicions es publiquen com aproximades amb precisio
+  `range_ring`.
+- La capa pot ser buida encara que una aeronau surti a Flightradar24, per diferencies de cobertura o disponibilitat
+  entre feeds ADS-B publics.
 
 ## FIRMS
 

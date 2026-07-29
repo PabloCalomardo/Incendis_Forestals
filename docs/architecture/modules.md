@@ -61,7 +61,7 @@ flowchart LR
 ## Responsabilitats
 
 Frontend Civil:
-Interficie publica per mapa, incidents, avisos, evacuacions, restriccions, carreteres, risc i fum simplificat. Ha de prioritzar claredat, accessibilitat i evitar confusio entre dades oficials i estimades.
+Interficie publica per mapa, incidents, avisos, evacuacions, restriccions, carreteres, risc, fum simplificat i aeronaus d'emergencia actives. Ha de prioritzar claredat, accessibilitat i evitar confusio entre dades oficials, observades i estimades.
 
 Es el modul prioritari fins assolir una versio publicable.
 
@@ -74,6 +74,8 @@ Estat: no implementat com a producte operatiu.
 
 API:
 Superficie HTTP amb endpoints publics i interns, validacio, errors consistents, correlation IDs, cache i OpenAPI. Ha de filtrar informacio sensible segons portal i rol.
+
+També exposa `/civil/aircraft/live`, que creua el dataset OSINT local d'aeronaus amb OpenSky i Airplanes.live sense persistir tracks live a la base de dades.
 
 Autenticacio:
 OpenID Connect, sessions segures, RBAC, auditoria, revocacio i preparacio per MFA per al portal Bomber.

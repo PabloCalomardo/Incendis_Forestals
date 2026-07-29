@@ -33,6 +33,7 @@ const MAP_TILE_URL =
   process.env.NEXT_PUBLIC_MAP_TILE_URL ?? "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 const MAP_TILE_ATTRIBUTION =
   process.env.NEXT_PUBLIC_MAP_TILE_ATTRIBUTION ?? "&copy; OpenStreetMap contributors";
+const aircraftLayerIds = ["aircraft-point", "aircraft-heading", "aircraft-label"];
 
 const selectableLayers = [
   "detections-heat-area",
@@ -46,6 +47,9 @@ const selectableLayers = [
   "restrictions-point",
   "risk-fill",
   "smoke-fill",
+  "aircraft-point",
+  "aircraft-heading",
+  "aircraft-label",
 ];
 
 const layerIdsBySource: Record<CivilLayerName, string[]> = {
@@ -61,7 +65,16 @@ const layerIdsBySource: Record<CivilLayerName, string[]> = {
   roads: [],
   risk: ["risk-fill"],
   smoke: ["smoke-fill"],
+  aircraft: aircraftLayerIds,
 };
+
+function moveAircraftLayersToTop(map: maplibregl.Map) {
+  aircraftLayerIds.forEach((layerId) => {
+    if (map.getLayer(layerId)) {
+      map.moveLayer(layerId);
+    }
+  });
+}
 
 function getLayerData(
   civilLayers: Partial<Record<CivilLayerName, CivilFeatureCollection>> | undefined,
@@ -388,6 +401,8 @@ function popupTitle(feature: CivilFeature) {
     compactValue(properties.canonical_title) ??
     compactValue(properties.name) ??
     compactValue(properties.title) ??
+    compactValue(properties.registration) ??
+    compactValue(properties.callsign) ??
     compactValue(properties.sensor) ??
     feature.properties.data_type
   );
@@ -460,6 +475,15 @@ function popupRows(feature: CivilFeature) {
     ],
     ["Sensor", properties.sensor],
     ["FRP", properties.frp_mw ? `${properties.frp_mw} MW` : null],
+    ["Operador", properties.operator],
+    ["Servei", properties.service_type],
+    ["Matricula", properties.registration],
+    ["ICAO24", properties.icao24],
+    ["Vol", properties.flight],
+    ["Model", properties.model],
+    ["Altitud", properties.altitude_m ? `${properties.altitude_m} m` : null],
+    ["Velocitat", properties.velocity_kmh ? `${properties.velocity_kmh} km/h` : null],
+    ["Rumb", properties.heading_degrees ? `${properties.heading_degrees} graus` : null],
   ];
   const standardRows = rows.flatMap(([label, value]) => {
     const compact = compactValue(value);
@@ -645,6 +669,10 @@ export function MapShell({
           type: "geojson",
           data: emptyFeatureCollection,
         },
+        "civil-aircraft": {
+          type: "geojson",
+          data: emptyFeatureCollection,
+        },
       },
       layers: [
         {
@@ -692,6 +720,66 @@ export function MapShell({
           paint: {
             "fill-color": "#7a8791",
             "fill-opacity": ["case", ["==", ["get", "provenance"], "estimated"], 0.2, 0.12],
+          },
+        },
+        {
+          id: "aircraft-point",
+          type: "circle",
+          source: "civil-aircraft",
+          layout: { visibility: "visible" },
+          paint: {
+            "circle-color": [
+              "case",
+              ["in", "incendi", ["downcase", ["to-string", ["get", "service_type", ["get", "properties"]]]]],
+              "#ff7a00",
+              "#1d5fd0",
+            ],
+            "circle-radius": ["interpolate", ["linear"], ["zoom"], 5, 5, 10, 8, 14, 11],
+            "circle-stroke-color": "#ffffff",
+            "circle-stroke-width": 2,
+            "circle-opacity": 0.94,
+          },
+        },
+        {
+          id: "aircraft-heading",
+          type: "symbol",
+          source: "civil-aircraft",
+          layout: {
+            visibility: "visible",
+            "text-field": "^",
+            "text-size": ["interpolate", ["linear"], ["zoom"], 5, 14, 12, 20],
+            "text-rotate": ["to-number", ["get", "heading_degrees", ["get", "properties"]], 0],
+            "text-allow-overlap": true,
+            "text-ignore-placement": true,
+            "text-offset": [0, -0.2],
+          },
+          paint: {
+            "text-color": "#17201b",
+            "text-halo-color": "#ffffff",
+            "text-halo-width": 1,
+          },
+        },
+        {
+          id: "aircraft-label",
+          type: "symbol",
+          source: "civil-aircraft",
+          minzoom: 7,
+          layout: {
+            visibility: "visible",
+            "text-field": [
+              "coalesce",
+              ["get", "registration", ["get", "properties"]],
+              ["get", "callsign", ["get", "properties"]],
+            ],
+            "text-size": 11,
+            "text-anchor": "top",
+            "text-offset": [0, 1.1],
+            "text-allow-overlap": false,
+          },
+          paint: {
+            "text-color": "#17201b",
+            "text-halo-color": "#ffffff",
+            "text-halo-width": 1.2,
           },
         },
         {
@@ -1071,7 +1159,10 @@ export function MapShell({
     map.addControl(new maplibregl.NavigationControl({ showCompass: true }), "top-right");
 
     const resizeMap = () => map.resize();
-    map.once("load", resizeMap);
+    map.once("load", () => {
+      resizeMap();
+      moveAircraftLayersToTop(map);
+    });
     window.requestAnimationFrame(resizeMap);
 
     const resizeObserver = new ResizeObserver(resizeMap);
@@ -1185,6 +1276,7 @@ export function MapShell({
           maplibregl.GeoJSONSource["setData"]
         >[0],
       );
+      moveAircraftLayersToTop(map);
       featureIndexRef.current = nextFeatureIndex;
       return missingSource;
     };
@@ -1214,6 +1306,7 @@ export function MapShell({
           map.setLayoutProperty(layerId, "visibility", visibility);
         });
       });
+      moveAircraftLayersToTop(map);
       return missingLayer;
     };
     if (!applyVisibility()) {

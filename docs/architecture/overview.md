@@ -6,7 +6,7 @@ Estat executable actual: consulta [`../current-state.md`](../current-state.md).
 
 ```mermaid
 flowchart TB
-    sources[Fonts FIRMS EFFIS AEMET DGT CNIG CECAT OSINT]
+    sources[Fonts FIRMS EFFIS AEMET DGT CNIG CECAT OSINT ADS-B]
     workers[Celery: ingestio i reconciliacio]
     raw[(MinIO: originals)]
     db[(PostgreSQL + PostGIS)]
@@ -44,11 +44,12 @@ Docker Compose aixeca web, API, worker, beat, PostgreSQL/PostGIS, Redis i MinIO.
 - Celery/Redis per ingestio periodica.
 - PostgreSQL/PostGIS per consultes i reparacio geoespacial.
 - MinIO compatible S3 per payloads originals.
-- Connectors FIRMS, EFFIS, AEMET/CAP, IGN/CNIG, OSM, DATEX/eTraffic, CECAT i OSINT.
+- Connectors FIRMS, EFFIS, AEMET/CAP, IGN/CNIG, OSM, DATEX/eTraffic, CECAT, OSINT i aeronaus ADS-B.
 
 ## Limitacions estructurals
 
 - No existeix un registre public complet d'enviaments ES-Alert; la cobertura es una reconstruccio d'evidencies publiques.
 - X requereix credencials; Nitter i TwitterViewer son passarel.les degradables, no APIs contractuals.
 - EFFIS representa area cremada, no estat operatiu ni tasques d'extincio.
+- Les aeronaus depenen de cobertura ADS-B publica i d'un dataset OSINT local; no substitueixen feeds propietaris.
 - Les fonts administratives espanyoles continuen fragmentades per territori.

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
+from pathlib import Path
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
@@ -46,6 +48,12 @@ PUBLIC_CACHE_SECONDS = 30
 RATE_LIMIT_PER_MINUTE = 180
 IGN_MUNICIPALITIES_URL = "https://services1.arcgis.com/nCKYwcSONQTkPA4K/arcgis/rest/services/muni/FeatureServer/0/query"
 EXCLUDED_MUNICIPALITY_NAMES = {"agost"}
+OPENSKY_STATES_URL = "https://opensky-network.org/api/states/all"
+AIRPLANES_LIVE_REG_URL = "https://api.airplanes.live/v2/reg/{registrations}"
+AIRPLANES_LIVE_HEX_URL = "https://api.airplanes.live/v2/hex/{icao24s}"
+SPAIN_AIRCRAFT_BBOX = "-19.5,27.5,5.0,44.5"
+AIRCRAFT_DATASET_PATH = Path(__file__).resolve().parents[2] / "data" / "emergency_aircraft_spain.json"
+AIRCRAFT_DATASET_CACHE: list[dict[str, Any]] | None = None
 
 
 @dataclass(frozen=True)
@@ -143,6 +151,195 @@ def _parse_bbox(raw_bbox: str) -> tuple[float, float, float, float]:
     if not (-180 <= west < east <= 180 and -90 <= south < north <= 90):
         raise HTTPException(status_code=422, detail="bbox coordinates are outside EPSG:4326 bounds")
     return west, south, east, north
+
+
+def _aircraft_dataset() -> list[dict[str, Any]]:
+    global AIRCRAFT_DATASET_CACHE
+    if AIRCRAFT_DATASET_CACHE is None:
+        payload = json.loads(AIRCRAFT_DATASET_PATH.read_text(encoding="utf-8-sig"))
+        AIRCRAFT_DATASET_CACHE = [
+            aircraft
+            for aircraft in payload.get("aircraft", [])
+            if isinstance(aircraft, dict) and str(aircraft.get("id", "")).startswith("ES-EMG-")
+        ]
+    return AIRCRAFT_DATASET_CACHE
+
+
+def _normalize_aircraft_token(value: Any) -> str:
+    return "".join(character for character in str(value or "").upper() if character.isalnum())
+
+
+def _normalize_icao24(value: Any) -> str:
+    token = _normalize_aircraft_token(value).lower()
+    return token if len(token) == 6 and all(character in "0123456789abcdef" for character in token) else ""
+
+
+def _aircraft_indexes() -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+    by_icao24: dict[str, dict[str, Any]] = {}
+    by_registration: dict[str, dict[str, Any]] = {}
+    for aircraft in _aircraft_dataset():
+        icao24 = _normalize_icao24(aircraft.get("icao24"))
+        registration = _normalize_aircraft_token(aircraft.get("registration"))
+        if icao24:
+            by_icao24[icao24] = aircraft
+        if registration:
+            by_registration[registration] = aircraft
+    return by_icao24, by_registration
+
+
+def _state_value(state: list[Any], index: int) -> Any:
+    return state[index] if len(state) > index else None
+
+
+def _open_sky_aircraft_feature(state: list[Any], aircraft: dict[str, Any], observed_at: datetime) -> dict[str, Any] | None:
+    longitude = _state_value(state, 5)
+    latitude = _state_value(state, 6)
+    on_ground = bool(_state_value(state, 8))
+    if longitude is None or latitude is None or on_ground:
+        return None
+    icao24 = str(_state_value(state, 0) or "").lower()
+    callsign = str(_state_value(state, 1) or "").strip()
+    last_contact = _state_value(state, 4)
+    observed = datetime.fromtimestamp(int(last_contact), UTC) if isinstance(last_contact, int | float) else observed_at
+    altitude = _state_value(state, 13) if _state_value(state, 13) is not None else _state_value(state, 7)
+    velocity = _state_value(state, 9)
+    heading = _state_value(state, 10)
+    vertical_rate = _state_value(state, 11)
+    aircraft_id = str(aircraft.get("id") or icao24 or callsign)
+    return {
+        "type": "Feature",
+        "id": f"aircraft-{aircraft_id}-{icao24 or _normalize_aircraft_token(callsign)}",
+        "geometry": {"type": "Point", "coordinates": [longitude, latitude]},
+        "properties": {
+            "id": f"aircraft-{aircraft_id}-{icao24 or _normalize_aircraft_token(callsign)}",
+            "data_type": "emergency_aircraft",
+            "source": {
+                "name": "OpenSky Network",
+                "authority": "OpenSky Network",
+                "url": "https://opensky-network.org/",
+                "attribution": "OpenSky Network live ADS-B state vectors",
+            },
+            "observed_at": observed,
+            "updated_at": observed_at,
+            "age_seconds": max(0, int((datetime.now(UTC) - observed).total_seconds())),
+            "confidence": 0.82 if icao24 and _normalize_icao24(aircraft.get("icao24")) == icao24 else 0.64,
+            "confidence_category": "high" if icao24 and _normalize_icao24(aircraft.get("icao24")) == icao24 else "medium",
+            "provenance": "observed",
+            "is_current": True,
+            "warnings": [] if _normalize_icao24(aircraft.get("icao24")) else ["matched_by_callsign_or_registration"],
+            "properties": {
+                "title": f"{aircraft.get('registration') or callsign} · {aircraft.get('operator')}",
+                "aircraft_dataset_id": aircraft.get("id"),
+                "operator": aircraft.get("operator"),
+                "scope": aircraft.get("scope"),
+                "service_type": aircraft.get("service_type"),
+                "registration": aircraft.get("registration"),
+                "icao24": icao24,
+                "callsign": callsign or None,
+                "flight": callsign or None,
+                "model": aircraft.get("model"),
+                "category": aircraft.get("category"),
+                "ownership_operation": aircraft.get("ownership_operation"),
+                "verification_status": aircraft.get("verification_status"),
+                "dataset_confidence": aircraft.get("confidence"),
+                "validity_observation": aircraft.get("validity_observation"),
+                "altitude_m": altitude,
+                "velocity_mps": velocity,
+                "velocity_kmh": round(float(velocity) * 3.6, 1) if isinstance(velocity, int | float) else None,
+                "heading_degrees": heading,
+                "vertical_rate_mps": vertical_rate,
+                "origin_country": _state_value(state, 2),
+                "squawk": _state_value(state, 14),
+                "position_source": _state_value(state, 16),
+                "opensky_track_url": f"https://opensky-network.org/aircraft-profile?icao24={icao24}" if icao24 else None,
+                "primary_source": aircraft.get("primary_source"),
+                "secondary_source": aircraft.get("secondary_source"),
+            },
+        },
+    }
+
+
+def _airplanes_live_number(value: Any) -> float | None:
+    if isinstance(value, int | float):
+        return float(value)
+    return None
+
+
+def _chunks(values: list[str], size: int) -> Iterable[list[str]]:
+    for index in range(0, len(values), size):
+        yield values[index : index + size]
+
+
+def _airplanes_live_aircraft_feature(item: dict[str, Any], aircraft: dict[str, Any], observed_at: datetime) -> dict[str, Any] | None:
+    latitude = _airplanes_live_number(item.get("lat"))
+    longitude = _airplanes_live_number(item.get("lon"))
+    position_kind = "adsb"
+    if latitude is None or longitude is None:
+        latitude = _airplanes_live_number(item.get("rr_lat"))
+        longitude = _airplanes_live_number(item.get("rr_lon"))
+        position_kind = "range_ring"
+    altitude = item.get("alt_geom") if item.get("alt_geom") is not None else item.get("alt_baro")
+    if latitude is None or longitude is None or altitude == "ground":
+        return None
+    registration = str(item.get("r") or aircraft.get("registration") or "").strip()
+    callsign = str(item.get("flight") or "").strip()
+    icao24 = _normalize_icao24(item.get("hex"))
+    seen_seconds = _airplanes_live_number(item.get("seen_pos") if item.get("seen_pos") is not None else item.get("seen"))
+    observed = observed_at - timedelta(seconds=seen_seconds) if seen_seconds is not None else observed_at
+    ground_speed_knots = _airplanes_live_number(item.get("gs"))
+    vertical_rate_fpm = _airplanes_live_number(item.get("geom_rate") if item.get("geom_rate") is not None else item.get("baro_rate"))
+    aircraft_id = str(aircraft.get("id") or registration or icao24 or callsign)
+    return {
+        "type": "Feature",
+        "id": f"aircraft-{aircraft_id}-{icao24 or _normalize_aircraft_token(registration or callsign)}",
+        "geometry": {"type": "Point", "coordinates": [longitude, latitude]},
+        "properties": {
+            "id": f"aircraft-{aircraft_id}-{icao24 or _normalize_aircraft_token(registration or callsign)}",
+            "data_type": "emergency_aircraft",
+            "source": {
+                "name": "Airplanes.live",
+                "authority": "Airplanes.live",
+                "url": "https://airplanes.live/",
+                "attribution": "Airplanes.live live ADS-B data",
+            },
+            "observed_at": observed,
+            "updated_at": observed_at,
+            "age_seconds": max(0, int((datetime.now(UTC) - observed).total_seconds())),
+            "confidence": 0.78,
+            "confidence_category": "high",
+            "provenance": "observed",
+            "is_current": True,
+            "warnings": ["matched_by_registration"] + (["approximate_range_ring_position"] if position_kind == "range_ring" else []),
+            "properties": {
+                "title": f"{registration or callsign} · {aircraft.get('operator')}",
+                "aircraft_dataset_id": aircraft.get("id"),
+                "operator": aircraft.get("operator"),
+                "scope": aircraft.get("scope"),
+                "service_type": aircraft.get("service_type"),
+                "registration": registration or aircraft.get("registration"),
+                "icao24": icao24 or None,
+                "callsign": callsign or None,
+                "flight": callsign or None,
+                "model": aircraft.get("model"),
+                "category": aircraft.get("category"),
+                "ownership_operation": aircraft.get("ownership_operation"),
+                "verification_status": aircraft.get("verification_status"),
+                "dataset_confidence": aircraft.get("confidence"),
+                "validity_observation": aircraft.get("validity_observation"),
+                "altitude_m": round(float(altitude) * 0.3048, 1) if isinstance(altitude, int | float) else None,
+                "velocity_mps": round(ground_speed_knots * 0.514444, 1) if ground_speed_knots is not None else None,
+                "velocity_kmh": round(ground_speed_knots * 1.852, 1) if ground_speed_knots is not None else None,
+                "heading_degrees": item.get("track"),
+                "vertical_rate_mps": round(vertical_rate_fpm * 0.00508, 1) if vertical_rate_fpm is not None else None,
+                "origin_country": None,
+                "squawk": item.get("squawk"),
+                "position_source": position_kind if position_kind == "range_ring" else item.get("type"),
+                "opensky_track_url": f"https://opensky-network.org/aircraft-profile?icao24={icao24}" if icao24 else None,
+                "primary_source": aircraft.get("primary_source"),
+                "secondary_source": aircraft.get("secondary_source"),
+            },
+        },
+    }
 
 
 def _jsonb_text(model: type[Any]) -> ColumnElement[str]:
@@ -650,6 +847,103 @@ async def _list_records(
         )
     payload = _as_geojson(items, query) if query.response_format == "geojson" else _as_collection(items, query)
     return await _public_response(request, payload, if_none_match, f"civil:{request.url.path}?{request.url.query}")
+
+
+@router.get("/aircraft/live", dependencies=[Depends(rate_limit)])
+async def live_emergency_aircraft(
+    request: Request,
+    bbox: str = Query(default=SPAIN_AIRCRAFT_BBOX, description="west,south,east,north in EPSG:4326"),
+    if_none_match: CivilIfNoneMatch = None,
+) -> Response:
+    west, south, east, north = _parse_bbox(bbox)
+    cache_key = f"civil:{request.url.path}?{request.url.query or f'bbox={bbox}'}"
+    by_icao24, by_registration = _aircraft_indexes()
+    params: list[tuple[str, str]] = [
+        ("lamin", str(south)),
+        ("lomin", str(west)),
+        ("lamax", str(north)),
+        ("lomax", str(east)),
+        ("extended", "1"),
+    ]
+    for icao24 in sorted(by_icao24):
+        params.append(("icao24", icao24))
+
+    observed_at = datetime.now(UTC)
+    features: list[dict[str, Any]] = []
+    warnings: list[str] = []
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(OPENSKY_STATES_URL, params=params)
+            response.raise_for_status()
+            payload = response.json()
+    except httpx.HTTPStatusError as exc:
+        payload = {"states": []}
+        warnings.append(f"opensky_http_{exc.response.status_code}")
+    except Exception:
+        payload = {"states": []}
+        warnings.append("opensky_unavailable")
+
+    seen: set[str] = set()
+    for state in payload.get("states") or []:
+        if not isinstance(state, list):
+            continue
+        icao24 = _normalize_icao24(_state_value(state, 0))
+        callsign = _normalize_aircraft_token(_state_value(state, 1))
+        aircraft = by_icao24.get(icao24) or by_registration.get(callsign)
+        if aircraft is None:
+            continue
+        feature = _open_sky_aircraft_feature(state, aircraft, observed_at)
+        if feature is None or feature["id"] in seen:
+            continue
+        seen.add(feature["id"])
+        features.append(feature)
+
+    async def add_airplanes_live_matches(url_template: str, values: list[str], warning_prefix: str) -> None:
+        if not values:
+            return
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            for chunk in _chunks(values, 40):
+                try:
+                    response = await client.get(url_template.format(registrations=",".join(chunk), icao24s=",".join(chunk)))
+                    response.raise_for_status()
+                    airplanes_payload = response.json()
+                except httpx.HTTPStatusError as exc:
+                    warnings.append(f"{warning_prefix}_http_{exc.response.status_code}")
+                    continue
+                except Exception:
+                    warnings.append(f"{warning_prefix}_unavailable")
+                    continue
+                for item in airplanes_payload.get("ac") or []:
+                    if not isinstance(item, dict):
+                        continue
+                    icao24 = _normalize_icao24(item.get("hex"))
+                    registration = _normalize_aircraft_token(item.get("r"))
+                    aircraft = by_icao24.get(icao24) or by_registration.get(registration)
+                    if aircraft is None:
+                        continue
+                    feature = _airplanes_live_aircraft_feature(item, aircraft, observed_at)
+                    if feature is None or feature["id"] in seen:
+                        continue
+                    seen.add(feature["id"])
+                    features.append(feature)
+
+    await add_airplanes_live_matches(AIRPLANES_LIVE_HEX_URL, sorted(by_icao24), "airplanes_live_hex")
+    await add_airplanes_live_matches(AIRPLANES_LIVE_REG_URL, sorted(by_registration), "airplanes_live_reg")
+
+    body = {
+        "type": "FeatureCollection",
+        "features": features,
+        "pagination": {"limit": len(features), "offset": 0, "count": len(features)},
+        "warnings": sorted(set(warnings)),
+        "metadata": {
+            "dataset_aircraft_count": len(_aircraft_dataset()),
+            "matched_aircraft_count": len(features),
+            "matching": "opensky_icao24_or_callsign_plus_airplanes_live_hex_or_registration",
+            "bbox": bbox,
+            "source": "OpenSky Network /states/all; Airplanes.live /hex and /reg",
+        },
+    }
+    return await _public_response(request, body, if_none_match, cache_key)
 
 
 @router.get("/incidents", dependencies=[Depends(rate_limit)])

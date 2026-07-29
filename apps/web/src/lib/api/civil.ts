@@ -63,7 +63,8 @@ export type CivilLayerName =
   | "restrictions"
   | "roads"
   | "risk"
-  | "smoke";
+  | "smoke"
+  | "aircraft";
 
 export type CivilLayerState = Record<CivilLayerName, CivilFeatureCollection>;
 
@@ -806,7 +807,11 @@ export async function getCivilLayer(
     roads: "/civil/roads",
     risk: "/civil/risk",
     smoke: "/civil/smoke",
+    aircraft: "/civil/aircraft/live",
   };
+  if (layer === "aircraft") {
+    return request<CivilFeatureCollection>(pathByLayer[layer]).catch(() => emptyFeatureCollection);
+  }
   const features: CivilFeature[] = [];
   let pagination = emptyFeatureCollection.pagination;
   const maximumFeatures =

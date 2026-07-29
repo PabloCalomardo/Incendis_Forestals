@@ -37,6 +37,7 @@ def test_civil_openapi_exposes_public_contract() -> None:
     assert "/civil/notices" in schema["paths"]
     assert "/civil/risk" in schema["paths"]
     assert "/civil/smoke" in schema["paths"]
+    assert "/civil/aircraft/live" in schema["paths"]
     assert "/civil/search/geographic" in schema["paths"]
     assert "/civil/search/municipality" in schema["paths"]
     assert "/civil/municipalities/search" in schema["paths"]

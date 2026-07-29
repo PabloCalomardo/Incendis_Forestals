@@ -32,6 +32,7 @@ const layerLabels: Record<CivilLayerName, string> = {
   roads: "Carreteres",
   risk: "Risc",
   smoke: "Fum",
+  aircraft: "Aeronaus",
 };
 
 const layerNames = Object.keys(layerLabels) as CivilLayerName[];
@@ -58,6 +59,10 @@ const sourceDescriptions: Record<string, string> = {
     "Informació europea harmonitzada. Els perímetres d'àrea cremada són productes satel·litaris estimats d'EFFIS;",
     "no informen de les tasques operatives d'extinció.",
   ].join(" "),
+  "Airplanes.live":
+    "Dades ADS-B live consultades per matricula per complementar OpenSky quan el dataset OSINT no te ICAO24.",
+  "OpenSky Network":
+    "Vectors ADS-B live. El matching fiable requereix ICAO24; si falta, nomes es pot provar callsign/matricula.",
 };
 
 const emptyCollection: CivilCollection = {
@@ -829,6 +834,7 @@ export function CivilPortal() {
     roads: true,
     risk: true,
     smoke: true,
+    aircraft: true,
   });
   const [showFirmHotspots, setShowFirmHotspots] = useState(false);
   const [showNotices, setShowNotices] = useState(true);
@@ -937,7 +943,8 @@ export function CivilPortal() {
         layer !== "roads" &&
         (layer !== "detections" || Boolean(selectedFirmWindow)) &&
         (layer !== "perimeters" || selectedPerimeterPeriods.length > 0),
-      staleTime: 5 * 60 * 1000,
+      staleTime: layer === "aircraft" ? 15 * 1000 : 5 * 60 * 1000,
+      refetchInterval: () => (layer === "aircraft" && visibleLayers.aircraft ? 20 * 1000 : false),
       refetchOnWindowFocus: false,
     })),
   });
@@ -1059,9 +1066,12 @@ export function CivilPortal() {
     enabled: Boolean(selectedIncidentId),
     staleTime: 60 * 1000,
   });
+  const aircraftLayerIndex = layerNames.indexOf("aircraft");
+  const aircraftRefreshing =
+    aircraftLayerIndex >= 0 && visibleLayers.aircraft && Boolean(layerQueries[aircraftLayerIndex]?.isFetching);
   const loading =
     firmsTimelineQuery.isFetching ||
-    layerQueries.some((query) => query.isFetching) ||
+    layerQueries.some((query, index) => index !== aircraftLayerIndex && query.isFetching) ||
     incidentsQuery.isFetching ||
     (showNotices && noticesQuery.isFetching);
   const error =
@@ -1204,7 +1214,11 @@ export function CivilPortal() {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-lg font-bold">Mapa</h2>
               <p className="text-sm text-[#53605a]">
-                {loading ? "Carregant dades..." : `${allItems.length} elements publics`}
+                {aircraftRefreshing
+                  ? "Refrescant Aeronaus"
+                  : loading
+                    ? "Carregant dades..."
+                    : `${allItems.length} elements publics`}
               </p>
             </div>
             {error ? (

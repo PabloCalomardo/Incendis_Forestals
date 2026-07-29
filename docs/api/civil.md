@@ -19,6 +19,7 @@ GET /civil/roads/incidents
 GET /civil/notices
 GET /civil/risk
 GET /civil/smoke
+GET /civil/aircraft/live
 GET /civil/search/geographic
 GET /civil/search/municipality
 GET /civil/municipalities/search
@@ -29,6 +30,8 @@ GET /civil/osint/x-accounts
 ```
 
 `/detections/timeline` retorna els dies FIRMS disponibles. `/perimeters` accepta `perimeter_period=current|year|historic`. `/roads` conserva el contracte de xarxa; el dashboard representa les afectacions amb `/restrictions`.
+
+`/aircraft/live` retorna GeoJSON amb aeronaus publiques o contractades d'emergencia que estan volant i coincideixen amb el dataset OSINT local. Consulta OpenSky `/states/all` i Airplanes.live `/hex`/`/reg`; inclou `icao24`, callsign o vol ADS-B, matricula, operador, model, servei, altitud, velocitat, rumb, squawk, font live, precisio de posicio i enllacos de revisio quan existeixen.
 
 ## Filtres comuns
 
@@ -48,6 +51,8 @@ only_current=true
 ```
 
 Els filtres espacials utilitzen PostGIS i indexs GiST.
+
+`/aircraft/live` accepta `bbox=west,south,east,north`; si no s'indica, usa el bbox operatiu d'Espanya incloent Canaries. El frontend no passa el viewport actual a aquesta capa per no perdre aeronaus actives fora de la vista.
 
 ## Incidents canonics
 

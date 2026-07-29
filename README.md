@@ -113,6 +113,7 @@ Les variables i valors locals segurs es documenten a `.env.example`. `.env` es l
 - `GET /ready` retorna `503`: algun servei dependent encara no esta llest.
 - En mode `npm run dev` local, `/ready` pot retornar `503` si PostgreSQL, Redis o MinIO no estan arrencats.
 - El frontend no mostra l'API com a connectada: comprova `API_INTERNAL_BASE_URL` dins Docker i `NEXT_PUBLIC_API_BASE_URL` al navegador.
+- La capa `Aeronaus` usa OpenSky i Airplanes.live contra el dataset OSINT local; pot quedar buida per limits, cobertura ADS-B, callsigns variables o diferencies respecte de feeds propietaris com Flightradar24.
 - Les migracions fallen amb PostGIS: comprova que el servei `postgres` usa la imatge `postgis/postgis`.
 - MinIO no esta ready: espera que `minio-init` hagi creat el bucket definit a `MINIO_BUCKET_RAW`.
 
@@ -120,7 +121,9 @@ Les variables i valors locals segurs es documenten a `.env.example`. `.env` es l
 
 La plataforma executable inclou Dashboard Civil, API publica, FIRMS, EFFIS, AEMET/CAP, DGT/SCT/DT-GV DATEX,
 eTraffic, Proteccio Civil/CECAT, ES-Alert autenticat, OSINT/Nitter i xarxa viaria CNIG local. EFFIS, FIRMS i OSINT es
-reconcilien en incidents canonics. Consulta [`docs/current-state.md`](docs/current-state.md) per limitacions i pendents.
+reconcilien en incidents canonics. El mapa Civil tambe inclou aeronaus d'emergencia actives via OpenSky, Airplanes.live
+i dataset OSINT local enriquit amb `icao24`. Consulta [`docs/current-state.md`](docs/current-state.md) per limitacions i
+pendents.
 
 ## Preparacio GitHub
 

@@ -15,6 +15,7 @@ Estat detallat: [`../current-state.md`](../current-state.md).
 - **Proteccio Civil/CECAT**: plans actius de Catalunya.
 - **ES-Alert**: registre autenticat i reconstruccio OSINT d'evidencies publiques.
 - **OSINT**: portals 112, organismes, RSS, Nitter, X amb credencials i revisio humana.
+- **Aeronaus d'emergencia**: OpenSky i Airplanes.live creuats amb dataset OSINT local enriquit amb `icao24`.
 
 ## Pendents o limitades
 
@@ -23,6 +24,7 @@ Estat detallat: [`../current-state.md`](../current-state.md).
 - **X**: necessita Bearer Token; Nitter es la passarel.la principal i TwitterViewer queda per revisio humana.
 - **ES-Alert**: no existeix un feed public complet; no es pot garantir exhaustivitat.
 - **EFFIS**: no publica tasques d'extincio ni confirma l'estat operatiu.
+- **Aeronaus**: la cobertura depen dels feeds ADS-B publics; Flightradar24 pot mostrar vols que OpenSky/Airplanes.live no exposen en aquell moment.
 
 ## Regles comunes
 

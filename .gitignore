@@ -48,6 +48,8 @@ celerybeat.pid
 
 # Local data, database dumps and object-storage artifacts
 data/
+!apps/api/app/data/
+!apps/api/app/data/emergency_aircraft_spain.json
 tmp/
 temp/
 *.sqlite

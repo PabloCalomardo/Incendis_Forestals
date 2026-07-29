@@ -23,12 +23,15 @@ Seleccionar una entrada centra el mapa nomes quan disposa d'una geometria valida
 - **Historic d'incendis**: mes d'un any, desactivada per defecte.
 - **Avisos socials**: publicacions X/Nitter independents en blau, separades visualment dels incendis.
 - **ES-Alert, avisos i carreteres**: geometries oficials o inferides amb la seva procedencia. Restriccions per incendi o obstacle ambiental en taronja; la resta en lila.
+- **Aeronaus**: aeronaus d'emergencia actives en fonts ADS-B publiques. Els punts, rumb i etiqueta es renderitzen sempre per sobre de la resta de capes del mapa.
 
 Els popups EFFIS mostren data d'inici, data d'extincio nomes si esta confirmada, hashtag i l'accio `Veure tota la informacio`. El detall inferior agrega perimetres, deteccions, cronologia i publicacions relacionades.
 
 ## Dades i estat URL
 
-TanStack Query carrega incidents, deteccions, cronologia FIRMS, perimetres, avisos, ES-Alert, restriccions, risc, fum i OSINT. Una fallada parcial no inutilitza la resta del mapa.
+TanStack Query carrega incidents, deteccions, cronologia FIRMS, perimetres, avisos, ES-Alert, restriccions, risc, fum, OSINT i aeronaus. Una fallada parcial no inutilitza la resta del mapa.
+
+La capa `Aeronaus` es refresca cada 20 segons quan esta activa. Aquest refresc no mostra el popup central de carrega; el text superior del mapa canvia a `Refrescant Aeronaus`.
 
 L'URL conserva municipi, seleccio i viewport:
 
@@ -55,4 +58,5 @@ La URL es configurable. Produccio ha d'utilitzar un proveidor amb quota i condic
 - Error d'una capa: la resta continua operativa i la capa mostra error.
 - Resposta buida: estat buit i recompte zero, sense dades simulades.
 - Carrega inicial: popup centrat dins del mapa.
+- Refresc d'aeronaus: indicador compacte a la capcalera, sense bloquejar el mapa.
 - Incident sense geometria fiable: visible al detall, sense zoom artificial.

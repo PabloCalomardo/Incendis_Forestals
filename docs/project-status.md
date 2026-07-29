@@ -9,10 +9,10 @@ L'estat operatiu complet i les instruccions de continuacio es mantenen a [`curre
 - Prioritat: Dashboard Civil publicable; Portal Bomber ajornat.
 - Pila completa executable amb Next.js, FastAPI, PostGIS, Redis, MinIO i Celery.
 - Integracions actives: FIRMS, EFFIS, AEMET, AEMET CAP, DATEX DGT/SCT/DT-GV, eTraffic, IGN/CNIG, OSM,
-  Proteccio Civil/CECAT, registre ES-Alert autenticat i monitor OSINT/Nitter.
+  Proteccio Civil/CECAT, registre ES-Alert autenticat, monitor OSINT/Nitter i aeronaus d'emergencia via OpenSky/Airplanes.live.
 - Incendis canonics: perimetres EFFIS reconciliats amb FIRMS i publicacions OSINT.
 - Dashboard: capes dins del mapa, llistes amb scroll, cronologia FIRMS diaria, llegenda tancable, detall complet sota
-  el mapa i focus geografic en seleccionar elements.
+  el mapa, aeronaus sempre per sobre de la resta de capes i focus geografic en seleccionar elements.
 - Transit: geometria DATEX enriquida sobre CNIG, incloses carreteres sense PK; reparacio automatica de línies de dos
   punts.
 - Validacio: API `82` proves; frontend `10` proves; Ruff, mypy i TypeScript correctes.
