@@ -42,6 +42,7 @@ def make_config(map_key: str = "test-key") -> FirmsConnectorConfig:
     return FirmsConnectorConfig(
         map_key=map_key,
         source="VIIRS_NOAA20_NRT",
+        sources=["VIIRS_NOAA20_NRT"],
         area="-10.0,35.5,4.5,44.5",
         day_range=1,
         base_url="https://firms.modaps.eosdis.nasa.gov",
@@ -67,6 +68,7 @@ def test_normalize_keeps_spain_records_and_preserves_raw_fields() -> None:
     records = connector.normalize(sample_csv())
 
     assert len(records) == 3
+    assert records[0].source == "VIIRS_NOAA20_NRT"
     assert records[0].satellite == "NOAA-20"
     assert records[0].instrument == "VIIRS"
     assert records[0].frp == 2.24
@@ -132,7 +134,43 @@ async def test_fetch_uses_area_endpoint() -> None:
     raw = await connector.fetch()
 
     assert "api/area/csv/test-key/VIIRS_NOAA20_NRT/-10.0,35.5,4.5,44.5/1" in requested_urls[0]
-    assert raw.startswith("latitude,longitude")
+    assert raw.startswith("firms_source,latitude,longitude")
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_fetch_merges_multiple_sources() -> None:
+    requested_urls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requested_urls.append(str(request.url))
+        source = "VIIRS_NOAA21_NRT" if "VIIRS_NOAA21_NRT" in str(request.url) else "VIIRS_NOAA20_NRT"
+        return httpx.Response(
+            200,
+            text=(
+                "latitude,longitude,acq_date,acq_time,satellite,instrument,confidence,frp\n"
+                f"40.0,-3.0,2026-07-29,1200,{source},VIIRS,n,1.2\n"
+            ),
+        )
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    config = FirmsConnectorConfig(
+        map_key="test-key",
+        source="VIIRS_NOAA20_NRT",
+        sources=["VIIRS_NOAA20_NRT", "VIIRS_NOAA21_NRT"],
+        area="-10.0,35.5,4.5,44.5",
+        day_range=1,
+        base_url="https://firms.modaps.eosdis.nasa.gov",
+        timeout_seconds=1,
+        max_retries=2,
+    )
+    connector = FirmsConnector(DummySession(), config, http_client=client)  # type: ignore[arg-type]
+
+    raw = await connector.fetch()
+    records = connector.normalize(raw)
+
+    assert len(requested_urls) == 2
+    assert {record.source for record in records} == {"VIIRS_NOAA20_NRT", "VIIRS_NOAA21_NRT"}
     await client.aclose()
 
 

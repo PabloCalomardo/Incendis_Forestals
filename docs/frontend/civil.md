@@ -18,6 +18,9 @@ Seleccionar una entrada centra el mapa nomes quan disposa d'una geometria valida
 ## Capes
 
 - **FIRMS**: totes les deteccions del dia seleccionat; el selector temporal agrupa per dia, no per moment. `Punts FIRMS` esta desactivada inicialment, pero els grups i la resta de capes FIRMS continuen visibles. Les deteccions no s'oculten dins d'un perimetre EFFIS.
+  Les arees FIRMS es reconstrueixen i s'uneixen visualment abans de pintar el farciment vermell, de manera que un
+  solapament MODIS/VIIRS no acumula transparencia. Els contadors continuen separats per grup/sensor i es desplacen
+  lleument quan se solapen per evitar que quedin un damunt de l'altre.
 - **EFFIS actual**: perimetres de menys de set dies, visibles per defecte, amb farciment gris clicable.
 - **Incendis d'aquest any**: entre set dies i un any, desactivada per defecte.
 - **Historic d'incendis**: mes d'un any, desactivada per defecte.
@@ -30,6 +33,9 @@ Els popups EFFIS mostren data d'inici, data d'extincio nomes si esta confirmada,
 ## Dades i estat URL
 
 TanStack Query carrega incidents, deteccions, cronologia FIRMS, perimetres, avisos, ES-Alert, restriccions, risc, fum, OSINT i aeronaus. Una fallada parcial no inutilitza la resta del mapa.
+
+El bbox inicial FIRMS i del mapa civil es `-10.0,35.5,4.5,44.5`, alineat amb la ingesta NASA FIRMS. Les deteccions
+usen paginacio de 200 elements i un sostre de 10.000 features FIRMS per no tallar dies densos.
 
 La capa `Aeronaus` es refresca cada 20 segons quan esta activa. Aquest refresc no mostra el popup central de carrega; el text superior del mapa canvia a `Refrescant Aeronaus`.
 

@@ -418,7 +418,7 @@ def _apply_common_filters(statement: Select[Any], model: type[Any], query: Civil
     if query.sort == "confidence_desc" and hasattr(model, "confidence"):
         sort_column = model.confidence
     if sort_column is not None:
-        statement = statement.order_by(desc(sort_column).nullslast())
+        statement = statement.order_by(desc(sort_column).nullslast(), desc(model.id))
     return statement.offset(query.offset).limit(query.limit)
 
 

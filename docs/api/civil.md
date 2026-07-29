@@ -31,6 +31,10 @@ GET /civil/osint/x-accounts
 
 `/detections/timeline` retorna els dies FIRMS disponibles. `/perimeters` accepta `perimeter_period=current|year|historic`. `/roads` conserva el contracte de xarxa; el dashboard representa les afectacions amb `/restrictions`.
 
+`/detections` exposa les deteccions FIRMS persistides en JSON o GeoJSON. La paginacio usa un ordre estable
+`updated_at DESC NULLS LAST, id DESC` per evitar duplicats o salts entre pagines quan molts registres comparteixen
+marca temporal.
+
 `/aircraft/live` retorna GeoJSON amb aeronaus publiques o contractades d'emergencia que estan volant i coincideixen amb el dataset OSINT local. Consulta OpenSky `/states/all` i Airplanes.live `/hex`/`/reg`; inclou `icao24`, callsign o vol ADS-B, matricula, operador, model, servei, altitud, velocitat, rumb, squawk, font live, precisio de posicio i enllacos de revisio quan existeixen.
 
 ## Filtres comuns
@@ -51,6 +55,9 @@ only_current=true
 ```
 
 Els filtres espacials utilitzen PostGIS i indexs GiST.
+
+El bbox operatiu utilitzat pel frontend per FIRMS es `-10.0,35.5,4.5,44.5`; usar un bbox diferent pot excloure
+deteccions validament ingerides a les vores nord/est/sud/oest.
 
 `/aircraft/live` accepta `bbox=west,south,east,north`; si no s'indica, usa el bbox operatiu d'Espanya incloent Canaries. El frontend no passa el viewport actual a aquesta capa per no perdre aeronaus actives fora de la vista.
 

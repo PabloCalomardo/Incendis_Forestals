@@ -193,6 +193,7 @@ const emptyFeatureCollection: CivilFeatureCollection = {
 const LAYER_PAGE_SIZE = 200;
 const MAX_LAYER_FEATURES = 2_000;
 const MAX_PERIMETER_FEATURES = 50_000;
+const MAX_FIRMS_FEATURES = 10_000;
 const MAX_DAILY_FIRMS_FEATURES = 10_000;
 const MAX_AEMET_NOTICES = 1_000;
 
@@ -815,8 +816,10 @@ export async function getCivilLayer(
   const features: CivilFeature[] = [];
   let pagination = emptyFeatureCollection.pagination;
   const maximumFeatures =
-    layer === "detections" && temporalWindow
-      ? MAX_DAILY_FIRMS_FEATURES
+    layer === "detections"
+      ? temporalWindow
+        ? MAX_DAILY_FIRMS_FEATURES
+        : MAX_FIRMS_FEATURES
       : layer === "perimeters"
         ? MAX_PERIMETER_FEATURES
         : MAX_LAYER_FEATURES;

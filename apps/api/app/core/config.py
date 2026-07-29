@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     internal_api_token: str = Field(default="change-me-local-internal-token", repr=False)
 
     firms_map_key: str = Field(default="", repr=False)
-    firms_source: str = "VIIRS_NOAA20_NRT"
+    firms_source: str = "VIIRS_NOAA20_NRT,VIIRS_SNPP_NRT,VIIRS_NOAA21_NRT,MODIS_NRT"
     firms_area_spain: str = "-10.0,35.5,4.5,44.5"
     firms_day_range: int = 1
     firms_base_url: str = "https://firms.modaps.eosdis.nasa.gov"

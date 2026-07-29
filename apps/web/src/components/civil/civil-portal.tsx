@@ -816,12 +816,12 @@ export function CivilPortal() {
   );
   const [municipality, setMunicipality] = useState(searchParams.get("municipality") ?? "");
   const [mapFocusBbox, setMapFocusBbox] = useState(
-    searchParams.get("focusBbox") ?? searchParams.get("bbox") ?? "-10,35,5,44",
+    searchParams.get("focusBbox") ?? searchParams.get("bbox") ?? "-10.0,35.5,4.5,44.5",
   );
   const [municipalityError, setMunicipalityError] = useState<string | null>(null);
   const [municipalityStatus, setMunicipalityStatus] = useState<string | null>(null);
   const [filters, setFilters] = useState<CivilFilters>({
-    bbox: searchParams.get("bbox") ?? "-10,35,5,44",
+    bbox: searchParams.get("bbox") ?? "-10.0,35.5,4.5,44.5",
     municipality: searchParams.get("municipality") ?? "",
     minConfidence: 0,
     onlyCurrent: searchParams.get("onlyCurrent") !== "false",

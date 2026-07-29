@@ -8,6 +8,7 @@ from app.core.config import Settings
 class FirmsConnectorConfig:
     map_key: str
     source: str
+    sources: list[str]
     area: str
     day_range: int
     base_url: str
@@ -16,9 +17,11 @@ class FirmsConnectorConfig:
 
     @classmethod
     def from_settings(cls, settings: Settings) -> "FirmsConnectorConfig":
+        sources = [source.strip() for source in settings.firms_source.split(",") if source.strip()]
         return cls(
             map_key=settings.firms_map_key,
-            source=settings.firms_source,
+            source=sources[0] if sources else settings.firms_source,
+            sources=sources or [settings.firms_source],
             area=settings.firms_area_spain,
             day_range=settings.firms_day_range,
             base_url=settings.firms_base_url.rstrip("/"),

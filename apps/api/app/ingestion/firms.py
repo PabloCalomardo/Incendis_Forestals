@@ -23,6 +23,7 @@ SPAIN_BBOX = (-10.0, 35.5, 4.5, 44.5)
 
 @dataclass(frozen=True)
 class FirmsDetection:
+    source: str
     latitude: float
     longitude: float
     acq_date: str
@@ -60,7 +61,13 @@ class FirmsConnector(BaseConnector[str, FirmsDetection]):
         if not self.config.map_key:
             raise ValidationError("FIRMS_MAP_KEY is required to execute NASA FIRMS connector")
 
-        url = f"{self.config.base_url}/api/area/csv/{self.config.map_key}/" f"{self.config.source}/{self.config.area}/{self.config.day_range}"
+        payloads: list[tuple[str, str]] = []
+        for source in self.config.sources:
+            payloads.append((source, await self._fetch_source(source)))
+        return self._merge_csv_payloads(payloads)
+
+    async def _fetch_source(self, source: str) -> str:
+        url = f"{self.config.base_url}/api/area/csv/{self.config.map_key}/" f"{source}/{self.config.area}/{self.config.day_range}"
         last_error: Exception | None = None
         for attempt in range(1, self.config.max_retries + 1):
             try:
@@ -77,6 +84,26 @@ class FirmsConnector(BaseConnector[str, FirmsDetection]):
                     break
                 await asyncio.sleep(min(2 ** (attempt - 1), 8))
         raise ValidationError(f"NASA FIRMS fetch failed: {last_error}")
+
+    def _merge_csv_payloads(self, payloads: list[tuple[str, str]]) -> str:
+        rows: list[dict[str, str]] = []
+        fieldnames: list[str] = ["firms_source"]
+        for source, raw in payloads:
+            reader = csv.DictReader(StringIO(raw))
+            if reader.fieldnames is None:
+                continue
+            for fieldname in reader.fieldnames:
+                if fieldname not in fieldnames:
+                    fieldnames.append(fieldname)
+            for row in reader:
+                rows.append({"firms_source": source, **row})
+        if not rows:
+            return ",".join(fieldnames) + "\n"
+        output = StringIO()
+        writer = csv.DictWriter(output, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+        return output.getvalue()
 
     def validate(self, raw: str) -> None:
         if not raw.strip():
@@ -100,6 +127,7 @@ class FirmsConnector(BaseConnector[str, FirmsDetection]):
             deduplication_hash = self._deduplication_hash(row)
             records.append(
                 FirmsDetection(
+                    source=row.get("firms_source", self.config.source),
                     latitude=latitude,
                     longitude=longitude,
                     acq_date=row["acq_date"],
@@ -186,6 +214,7 @@ class FirmsConnector(BaseConnector[str, FirmsDetection]):
         run.discarded_count = 0
         run.metrics = {
             "source": self.config.source,
+            "sources": self.config.sources,
             "area": self.config.area,
             "reconciliation": reconciliation,
         }
@@ -220,7 +249,7 @@ class FirmsConnector(BaseConnector[str, FirmsDetection]):
             finished_at=datetime.now(UTC),
             raw_object_uri=raw_uri,
             error_summary={"error": str(error), "type": error.__class__.__name__},
-            metrics={"source": self.config.source, "area": self.config.area},
+            metrics={"source": self.config.source, "sources": self.config.sources, "area": self.config.area},
         )
         self.session.add(run)
         await self.session.commit()
@@ -277,6 +306,7 @@ class FirmsConnector(BaseConnector[str, FirmsDetection]):
         result = await self.session.execute(select(DataSource).where(DataSource.name == "NASA FIRMS"))
         source = result.scalar_one_or_none()
         if source is not None:
+            source.source_metadata = {"source": self.config.source, "sources": self.config.sources}
             return source
         source = DataSource(
             name="NASA FIRMS",
@@ -287,7 +317,7 @@ class FirmsConnector(BaseConnector[str, FirmsDetection]):
             attribution="NASA FIRMS",
             update_frequency="near-real-time",
             reliability_score=0.8,
-            source_metadata={"source": self.config.source},
+            source_metadata={"source": self.config.source, "sources": self.config.sources},
         )
         self.session.add(source)
         await self.session.flush()
@@ -302,7 +332,7 @@ class FirmsConnector(BaseConnector[str, FirmsDetection]):
     def _deduplication_hash(self, row: dict[str, str]) -> str:
         stable = "|".join(
             [
-                self.config.source,
+                row.get("firms_source", self.config.source),
                 row.get("satellite", ""),
                 row.get("instrument", ""),
                 row.get("latitude", ""),

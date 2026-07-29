@@ -35,7 +35,9 @@ geometria quan la font no dona una ubicacio oficial prou precisa.
 - El detall complet de l'incendi es mostra sota el mapa. El popup EFFIS nomes mostra inici, extincio confirmada,
   hashtags, resum curt i l'accio per anar al detall.
 - Les publicacions X/Nitter independents es mostren en blau; un incendi canonic EFFIS conserva el color d'incendi.
-- `Punts FIRMS` esta desactivat inicialment. Les arees FIRMS i la resta de capes continuen actives.
+- `Punts FIRMS` esta desactivat inicialment. Les arees FIRMS i la resta de capes continuen actives. El farciment FIRMS
+  es pinta amb geometria visual unificada per evitar acumulacio de transparencia quan MODIS i VIIRS se solapen; els
+  contadors de grups/sensors se separen lleument per llegibilitat.
 - `Aeronaus` consulta OpenSky i Airplanes.live cada 20 segons quan la capa esta activa. Les aeronaus es dibuixen per
   sobre de restriccions, perimetres i deteccions.
 - El refresc d'aeronaus no obre el popup central de carrega; la capcalera del mapa mostra `Refrescant Aeronaus`.
@@ -57,13 +59,18 @@ geometria quan la font no dona una ubicacio oficial prou precisa.
 
 ## FIRMS
 
-- Connector real NASA FIRMS Area CSV amb `FIRMS_MAP_KEY`, originals, deduplicacio i dead-letter.
-- La vista inicial mostra totes les deteccions de l'ultim dia disponible agrupades espacialment.
+- Connector real NASA FIRMS Area CSV amb `FIRMS_MAP_KEY`, originals, deduplicacio i dead-letter. `FIRMS_SOURCE`
+  accepta llista separada per comes i ara cobreix `VIIRS_NOAA20_NRT`, `VIIRS_SNPP_NRT`, `VIIRS_NOAA21_NRT` i
+  `MODIS_NRT`.
+- La vista inicial mostra totes les deteccions de l'ultim dia disponible agrupades espacialment. El bbox civil/FIRMS
+  per defecte es `-10.0,35.5,4.5,44.5`.
 - La cronologia agrupa per dia, no per instant. El slider mostra simultaniament totes les deteccions del dia triat.
 - Els punts originals es poden activar amb `Punts FIRMS`.
 - Les deteccions no s'oculten quan coincideixen amb un perimetre EFFIS.
 - Les deteccions relacionades amb un incendi canonic s'afegeixen al seu detall i metadades, pero la capa FIRMS es
   manté independent.
+- La paginacio publica de deteccions usa ordre estable amb `id` com a desempat; el frontend permet fins a 10.000
+  features FIRMS per carregar dies amb milers de deteccions.
 
 ## EFFIS i incidents canonics
 

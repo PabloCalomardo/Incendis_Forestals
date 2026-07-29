@@ -152,6 +152,13 @@ def test_linked_firms_detections_remain_visible_in_public_queries() -> None:
     assert "fire_detections.incident_id IS NULL" not in compiled
 
 
+def test_public_detection_pagination_uses_stable_order() -> None:
+    statement = _apply_common_filters(select(FireDetection), FireDetection, CivilQuery(sort="updated_desc"))
+    compiled = str(statement.compile(dialect=postgresql.dialect()))  # type: ignore[no-untyped-call]
+
+    assert "ORDER BY fire_detections.updated_at DESC NULLS LAST, fire_detections.id DESC" in compiled
+
+
 def test_incident_properties_expose_effis_dates_and_shapefile_attributes() -> None:
     incident = make_incident(make_data_source())
     incident.original_metadata = {

@@ -4,6 +4,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import maplibregl from "maplibre-gl";
 import type { StyleSpecification } from "maplibre-gl";
+import polygonClipping, { type MultiPolygon, type Polygon } from "polygon-clipping";
 import type { CivilFeature, CivilFeatureCollection, CivilLayerName } from "@/lib/api/civil";
 import { useMapViewportStore } from "@/lib/state/map-store";
 
@@ -36,7 +37,6 @@ const MAP_TILE_ATTRIBUTION =
 const aircraftLayerIds = ["aircraft-point", "aircraft-heading", "aircraft-label"];
 
 const selectableLayers = [
-  "detections-heat-area",
   "detections-pin",
   "detections-pin-label",
   "perimeters-burnt-fill",
@@ -270,6 +270,56 @@ function detectionPointCollection(collection: CivilFeatureCollection): CivilFeat
   };
 }
 
+function visualAreaPolygons(feature: CivilFeature): Polygon[] {
+  if (feature.geometry?.type === "Polygon") {
+    return [feature.geometry.coordinates as Polygon];
+  }
+  if (feature.geometry?.type === "MultiPolygon") {
+    return feature.geometry.coordinates as MultiPolygon;
+  }
+  return [];
+}
+
+function detectionVisualAreaCollection(collection: CivilFeatureCollection): CivilFeatureCollection {
+  const polygons = collection.features.flatMap(visualAreaPolygons);
+  if (polygons.length === 0) {
+    return emptyFeatureCollection;
+  }
+  const union = polygonClipping.union(polygons[0], ...polygons.slice(1)) as MultiPolygon;
+  return {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        id: "firms-visual-area",
+        geometry: { type: "MultiPolygon", coordinates: union },
+        properties: {
+          id: "firms-visual-area",
+          data_type: "wildfire_detection_visual_area",
+          source: collection.features[0]?.properties.source ?? {
+            name: "NASA FIRMS",
+            authority: "NASA",
+            url: null,
+            attribution: null,
+          },
+          observed_at: collection.features[0]?.properties.observed_at ?? null,
+          updated_at: collection.features[0]?.properties.updated_at ?? null,
+          age_seconds: null,
+          confidence: null,
+          confidence_category: "nominal",
+          provenance: "observed",
+          is_current: true,
+          warnings: [],
+          properties: {
+            firms_age_days: collection.features[0]?.properties.properties.firms_age_days ?? 0,
+            firms_age_opacity: collection.features[0]?.properties.properties.firms_age_opacity ?? 1,
+          },
+        },
+      },
+    ],
+  };
+}
+
 function ringAreaAndCentroid(ring: number[][]) {
   let twiceArea = 0;
   let centroidX = 0;
@@ -345,6 +395,30 @@ function featureCentroid(feature: CivilFeature) {
   ] as [number, number];
 }
 
+function pinOffsetMeters(feature: CivilFeature): [number, number] {
+  const sensor = String(feature.properties.properties.sensor ?? "").toLowerCase();
+  if (sensor.includes("modis")) {
+    return [-170, -170];
+  }
+  if (sensor.includes("viirs")) {
+    return [170, 170];
+  }
+  return [0, 0];
+}
+
+function offsetCoordinate(coordinate: [number, number], feature: CivilFeature): [number, number] {
+  const [eastMeters, northMeters] = pinOffsetMeters(feature);
+  if (eastMeters === 0 && northMeters === 0) {
+    return coordinate;
+  }
+  const latitudeRadians = (coordinate[1] * Math.PI) / 180;
+  const longitudeScale = 111_320 * Math.max(Math.cos(latitudeRadians), 0.1);
+  return [
+    coordinate[0] + eastMeters / longitudeScale,
+    coordinate[1] + northMeters / 111_320,
+  ];
+}
+
 function detectionPinCollection(collection: CivilFeatureCollection): CivilFeatureCollection {
   const pins = collection.features.flatMap((feature, index) => {
     const centroid = featureCentroid(feature);
@@ -355,7 +429,7 @@ function detectionPinCollection(collection: CivilFeatureCollection): CivilFeatur
       {
         type: "Feature" as const,
         id: `${feature.properties.id}-pin-${index}`,
-        geometry: { type: "Point" as const, coordinates: centroid },
+        geometry: { type: "Point" as const, coordinates: offsetCoordinate(centroid, feature) },
         properties: {
           ...feature.properties,
           id: feature.properties.id,
@@ -634,6 +708,10 @@ export function MapShell({
           },
         },
         "civil-detections": {
+          type: "geojson",
+          data: emptyFeatureCollection,
+        },
+        "civil-detection-visual-areas": {
           type: "geojson",
           data: emptyFeatureCollection,
         },
@@ -1056,7 +1134,7 @@ export function MapShell({
         {
           id: "detections-heat-area",
           type: "fill",
-          source: "civil-detections",
+          source: "civil-detection-visual-areas",
           layout: {
             visibility: "visible",
           },
@@ -1256,16 +1334,24 @@ export function MapShell({
       const visibleDetections = isLayerVisible(visibleLayers, "detections")
         ? allDetections
         : emptyFeatureCollection;
+      const visualAreaSource = map.getSource("civil-detection-visual-areas") as
+        | maplibregl.GeoJSONSource
+        | undefined;
       const pointSource = map.getSource("civil-detection-points") as
         | maplibregl.GeoJSONSource
         | undefined;
       const pinSource = map.getSource("civil-detection-pins") as
         | maplibregl.GeoJSONSource
         | undefined;
-      if (!pointSource || !pinSource) {
+      if (!visualAreaSource || !pointSource || !pinSource) {
         missingSource = true;
         return missingSource;
       }
+      visualAreaSource.setData(
+        detectionVisualAreaCollection(visibleDetections) as unknown as Parameters<
+          maplibregl.GeoJSONSource["setData"]
+        >[0],
+      );
       pointSource.setData(
         detectionPointCollection(allDetections) as unknown as Parameters<
           maplibregl.GeoJSONSource["setData"]
