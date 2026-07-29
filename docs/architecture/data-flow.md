@@ -1,67 +1,56 @@
 # Flux de dades
 
-## Flux principal
+## Pipeline
 
 ```mermaid
-sequenceDiagram
-    participant Source as Font externa
-    participant Connector as Connector d'ingestio
-    participant Raw as Object storage
-    participant Run as DataIngestionRun
-    participant Normalize as Normalitzacio
-    participant DB as PostgreSQL/PostGIS
-    participant Model as Models GIS/prediccio
-    participant API as API
-    participant UI as Portals
-
-    Connector->>Source: fetch amb autenticacio i rate limit
-    Source-->>Connector: resposta original
-    Connector->>Raw: desa resposta original
-    Connector->>Run: registra execucio, metriques i errors
-    Connector->>Normalize: valida i transforma
-    Normalize->>DB: persisteix dades amb procedencia
-    DB->>Model: inputs versionats
-    Model->>DB: resultats estimats amb execucio de model
-    API->>DB: consulta filtrada per portal i permisos
-    UI->>API: peticions amb filtres espacials/temporals
-    API-->>UI: resposta amb font, edat, confiança i advertiments
+flowchart LR
+    source[Font externa] --> connector[Connector]
+    connector --> raw[(MinIO originals)]
+    connector --> run[DataIngestionRun]
+    connector --> normalize[Validacio i normalitzacio]
+    normalize --> db[(PostgreSQL/PostGIS)]
+    db --> reconcile[Reconciliacio d'incidents]
+    reconcile --> api[API Civil]
+    api --> ui[Dashboard Civil]
 ```
 
-## Etapes
+1. El connector recupera la font amb timeout, retries i identificador d'execucio.
+2. El payload original es conserva abans de normalitzar.
+3. Es validen camps, geometria, temps, cobertura i coherencia minima.
+4. La dada normalitzada conserva procedencia, CRS, temps observat/publicat/rebut, hash i metadata original.
+5. La reconciliacio associa evidencies sense destruir registres originals.
+6. L'API filtra camps interns i publica font, edat, confiança i advertiments.
 
-1. Captura:
-   Cada connector recupera dades externes amb autenticacio per variables d'entorn, timeouts, retries i idempotencia.
+## Reconciliacio d'incendis
 
-2. Conservacio original:
-   La resposta bruta es desa abans de normalitzar-la per permetre auditoria, reprocessament i verificacio.
+Els poligons EFFIS recents formen la identitat espacial principal. Diversos poligons es poden agrupar en un incident quan coincideixen en temps i el veinatge calculat segons l'area, municipis, hashtags o evidencies OSINT ho justifica. FIRMS sempre es conserva i es mostra independentment, encara que quedi dins del perimetre.
 
-3. Validacio:
-   Es comproven camps obligatoris, geometries, timestamps, unitats i cobertura.
+Les publicacions s'associen per una combinacio de:
 
-4. Normalitzacio:
-   Les dades es converteixen a formats interns, preservant CRS original, zona horaria original, data observada, publicada, rebuda i caducitat.
+- hashtag;
+- municipi exacte i context territorial;
+- distancia a perimetres actius;
+- proximitat temporal;
+- tipus de risc i text.
 
-5. Persistencia:
-   El domini conserva versions, procedencia, confidence score, metadades originals, hash de deduplicacio i timestamps.
+Una coincidencia ambigua queda separada o entra a revisio humana. `Agost` no es geocodifica des de text lliure i els noms compostos tenen prioritat sobre coincidencies parcials.
 
-6. Derivacio:
-   Els motors geoespacials, de fum i routing creen resultats derivats. Aquests resultats no sobreescriuen dades originals ni oficials.
+## Integritat d'ingestio
 
-7. Publicacio:
-   L'API exposa nomes els camps adequats a cada portal. El portal Civil rep informacio publica i el portal Bomber rep informacio operativa segons permisos.
+Una execucio fallida, parcial, bloquejada (`DeadlockDetectedError`) o sospitosament buida no substitueix l'ultima instantania valida. El connector registra l'error i conserva el raw/dead-letter quan existeix. Locks consultius eviten processos concurrents sobre la mateixa font o carretera.
 
-## Procedencia i confiança
+## Carreteres
 
-```mermaid
-flowchart TD
-    official[Official] --> confidence[Calcul de confiança]
-    observed[Observed] --> confidence
-    estimated[Estimated] --> confidence
-    unverified[Unverified] --> confidence
-    age[Edat i retard] --> confidence
-    geometry[Qualitat geometrica] --> confidence
-    agreement[Coherencia entre fonts] --> confidence
-    confidence --> response[Resposta amb valor, categoria, factors i advertiments]
-```
+DATEX aporta incidencia, carretera i PK. La geometria segueix aquest ordre:
 
-Les contradiccions entre fonts han de coexistir. La normalitzacio pot relacionar observacions, pero no ha d'eliminar registres contradictoris ni promoure estimacions a oficials.
+1. xarxa IGR-RT CNIG local;
+2. fusio i subseccio PostGIS dels trams del mateix `road_ref`;
+3. punts PK oficials DGT;
+4. Overpass o OSRM;
+5. coordenades DATEX, etiquetades com a fallback de baixa fidelitat.
+
+El reparador suporta taules CNIG sense clau primaria i actualitza tant `RestrictionZone` com `RoadSegment`.
+
+## Procedencia
+
+Les contradiccions coexisteixen. `official`, `observed`, `estimated` i `unverified` no son intercanviables. Una prediccio, una inferencia geografica o l'antiguitat d'un poligon no es converteixen automaticament en ordre oficial, enviament ES-Alert o extincio confirmada.

@@ -1,5 +1,7 @@
 # 🔥 Wildfire Intelligence Platform (WIP)
 
+> **Document de producte historic.** Per l'estat executable, decisions vigents i punt de represa, consulta [`docs/current-state.md`](docs/current-state.md).
+
 > Plataforma intel·ligent per a la monitorització, visualització i predicció d'incendis forestals orientada tant a la ciutadania com als serveis d'emergència.
 
 ---

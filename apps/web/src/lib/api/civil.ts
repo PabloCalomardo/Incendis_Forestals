@@ -24,7 +24,7 @@ export type CivilItem = {
   provenance: string;
   is_current: boolean;
   warnings: string[];
-  properties: Record<string, string | number | boolean | null>;
+  properties: Record<string, string | number | boolean | null | string[]>;
   geometry?: Geometry;
 };
 
@@ -74,6 +74,22 @@ export type CivilFilters = {
   onlyCurrent: boolean;
 };
 
+export type FirmsTimelineItem = {
+  observed_at: string;
+  count: number;
+};
+
+export type FirmsTimeline = {
+  data_type: "firms_timeline";
+  items: FirmsTimelineItem[];
+  warnings: string[];
+};
+
+export type CivilTemporalWindow = {
+  observedFrom: string;
+  observedTo: string;
+};
+
 export type MunicipalityLookupItem = {
   id: string;
   name: string;
@@ -102,6 +118,65 @@ export type MunicipalityLookupResponse = {
   warnings: string[];
 };
 
+export type OsintTimelineItem = {
+  id: string;
+  event_type: string;
+  risk_type: string;
+  action_state: string;
+  es_alert_status: string;
+  title: string;
+  authority: string;
+  published_at: string;
+  starts_at: string | null;
+  ends_at: string | null;
+  instructions: string | null;
+  es_alert_message: string | null;
+  locations: Array<{ name?: string; kind?: string; official?: boolean }>;
+  original_text: string;
+  url: string;
+  source_type: string;
+  source_name: string | null;
+  confidence: number;
+  review_status: string;
+  geometry_inference_method: string;
+  spatial_precision: string;
+};
+
+export type OsintIncidentDetail = {
+  id: string;
+  title: string;
+  summary: string | null;
+  status: string;
+  confidence: number | null;
+  duration_seconds: number | null;
+  properties: Record<string, unknown>;
+  timeline: OsintTimelineItem[];
+};
+
+export type InstitutionalXAccount = {
+  handle: string;
+  name: string;
+  authority: string;
+  region: string;
+  category: string;
+  x_url: string;
+  nitter_url: string;
+  viewer_url: string;
+  viewer_input: string;
+};
+
+export type InstitutionalXAccountsResponse = {
+  data_type: "institutional_x_accounts";
+  primary_gateway: "nitter";
+  nitter_base_url: string;
+  collection_mode: "human_review";
+  automated_collection: false;
+  reason: string;
+  viewer_url: string;
+  terms_url: string;
+  items: InstitutionalXAccount[];
+};
+
 const API_BASE_URL =
   typeof window === "undefined"
     ? (process.env.API_INTERNAL_BASE_URL ??
@@ -116,11 +191,15 @@ const emptyFeatureCollection: CivilFeatureCollection = {
 
 const LAYER_PAGE_SIZE = 200;
 const MAX_LAYER_FEATURES = 2_000;
+const MAX_PERIMETER_FEATURES = 50_000;
+const MAX_DAILY_FIRMS_FEATURES = 10_000;
+const MAX_AEMET_NOTICES = 1_000;
 
 type DetectionPoint = {
   id: string;
   longitude: number;
   latitude: number;
+  observation_day: string;
   sensor_family: "viirs" | "modis" | "other";
   scan_meters: number;
   track_meters: number;
@@ -183,6 +262,10 @@ function detectionPoint(feature: CivilFeature): DetectionPoint | null {
     id: feature.properties.id,
     longitude,
     latitude,
+    observation_day:
+      typeof feature.properties.observed_at === "string"
+        ? feature.properties.observed_at.slice(0, 10)
+        : "unknown",
     sensor_family: dimensions.sensorFamily,
     scan_meters: dimensions.scanMeters,
     track_meters: dimensions.trackMeters,
@@ -200,6 +283,7 @@ function metersBetween(first: DetectionPoint, second: DetectionPoint) {
 
 function pointsConnect(first: DetectionPoint, second: DetectionPoint) {
   return (
+    first.observation_day === second.observation_day &&
     first.sensor_family === second.sensor_family &&
     metersBetween(first, second) <=
       Math.max(first.connection_distance_meters, second.connection_distance_meters)
@@ -384,13 +468,17 @@ function gridCellPolygons(group: DetectionPoint[]): {
   });
 
   const dissolvedGrid =
-    gridSquares.length === 0
-      ? []
-      : polygonClipping.union(gridSquares[0], ...gridSquares.slice(1));
+    gridSquares.length === 0 ? [] : polygonClipping.union(gridSquares[0], ...gridSquares.slice(1));
   const gridLabelPoint = interiorGridPoint(dissolvedGrid, [...occupiedCells.values()]);
   const labelCoordinate = projection.unproject({
-    x: anchor.x + gridLabelPoint.column * spacing.horizontal * cosine - gridLabelPoint.row * spacing.vertical * sine,
-    y: anchor.y + gridLabelPoint.column * spacing.horizontal * sine + gridLabelPoint.row * spacing.vertical * cosine,
+    x:
+      anchor.x +
+      gridLabelPoint.column * spacing.horizontal * cosine -
+      gridLabelPoint.row * spacing.vertical * sine,
+    y:
+      anchor.y +
+      gridLabelPoint.column * spacing.horizontal * sine +
+      gridLabelPoint.row * spacing.vertical * cosine,
   });
   const polygons = dissolvedGrid.map((polygon) =>
     polygon.map((ring) =>
@@ -424,7 +512,8 @@ function pointInRing(point: { column: number; row: number }, ring: number[][]) {
     const intersects =
       current[1] > point.row !== previous[1] > point.row &&
       point.column <
-        ((previous[0] - current[0]) * (point.row - current[1])) / (previous[1] - current[1]) + current[0];
+        ((previous[0] - current[0]) * (point.row - current[1])) / (previous[1] - current[1]) +
+          current[0];
     if (intersects) {
       inside = !inside;
     }
@@ -580,10 +669,11 @@ function detectionGroupFeature(group: DetectionPoint[]): CivilFeature {
         label_longitude: grid.labelCoordinate[0],
         label_latitude: grid.labelCoordinate[1],
         firm_points_json: JSON.stringify(
-          group.map(({ feature: _feature, ...point }) => ({
+          group.map((point) => ({
             id: point.id,
             longitude: point.longitude,
             latitude: point.latitude,
+            observed_at: point.feature.properties.observed_at,
             footprint_size_meters: Math.max(point.scan_meters, point.track_meters),
             connection_distance_meters: point.connection_distance_meters,
           })),
@@ -643,14 +733,75 @@ export async function getCivilCollection(path: string, limit = 50): Promise<Civi
   return request<CivilCollection>(`${path}?${queryString({ limit, sort: "updated_desc" })}`);
 }
 
+async function getNoticeSource(source: string, limit: number, observedFrom?: string) {
+  const items: CivilItem[] = [];
+  for (let offset = 0; offset < limit; offset += LAYER_PAGE_SIZE) {
+    const page = await request<CivilCollection>(
+      `/civil/notices?${queryString({
+        source,
+        observed_from: observedFrom,
+        limit: Math.min(LAYER_PAGE_SIZE, limit - offset),
+        offset,
+        sort: "updated_desc",
+      })}`,
+    );
+    items.push(...page.items);
+    if (page.items.length < LAYER_PAGE_SIZE) {
+      break;
+    }
+  }
+  return items;
+}
+
+export async function getCivilNotices(): Promise<CivilCollection> {
+  const aemetObservedFrom = new Date(Date.now() - 4 * 24 * 60 * 60 * 1_000).toISOString();
+  const [aemet, catalonia] = await Promise.all([
+    getNoticeSource("AEMET Meteoalerta", MAX_AEMET_NOTICES, aemetObservedFrom),
+    getNoticeSource("Proteccio Civil", LAYER_PAGE_SIZE),
+  ]);
+  const items = [...aemet, ...catalonia].sort((first, second) =>
+    String(second.updated_at ?? "").localeCompare(String(first.updated_at ?? "")),
+  );
+  return {
+    data_type: "civil_collection",
+    items,
+    pagination: { limit: items.length, offset: 0, count: items.length },
+    warnings: [],
+  };
+}
+
+export async function getCivilFeatureCollection(
+  path: string,
+  filters: CivilFilters,
+  observedFrom?: string,
+  limit = 50,
+): Promise<CivilFeatureCollection> {
+  return request<CivilFeatureCollection>(
+    `${path}?${queryString({
+      bbox: filters.bbox,
+      observed_from: observedFrom,
+      only_current: false,
+      limit,
+      sort: "observed_desc",
+      format: "geojson",
+    })}`,
+  );
+}
+
+export async function getCivilIncident(incidentId: string): Promise<CivilItem> {
+  return request<CivilItem>(`/civil/incidents/${incidentId}`);
+}
+
 export async function getCivilLayer(
   layer: CivilLayerName,
   filters: CivilFilters,
+  temporalWindow?: CivilTemporalWindow,
+  perimeterPeriods?: string[],
 ): Promise<CivilFeatureCollection> {
   const pathByLayer: Record<CivilLayerName, string> = {
     detections: "/civil/detections",
     perimeters: "/civil/perimeters",
-    evacuations: "/civil/evacuations",
+    evacuations: "/civil/es-alerts",
     restrictions: "/civil/restrictions",
     roads: "/civil/roads",
     risk: "/civil/risk",
@@ -658,12 +809,21 @@ export async function getCivilLayer(
   };
   const features: CivilFeature[] = [];
   let pagination = emptyFeatureCollection.pagination;
-  for (let offset = 0; offset < MAX_LAYER_FEATURES; offset += LAYER_PAGE_SIZE) {
+  const maximumFeatures =
+    layer === "detections" && temporalWindow
+      ? MAX_DAILY_FIRMS_FEATURES
+      : layer === "perimeters"
+        ? MAX_PERIMETER_FEATURES
+        : MAX_LAYER_FEATURES;
+  for (let offset = 0; offset < maximumFeatures; offset += LAYER_PAGE_SIZE) {
     const page = await request<CivilFeatureCollection>(
       `${pathByLayer[layer]}?${queryString({
         bbox: filters.bbox,
         min_confidence: filters.minConfidence,
-        only_current: filters.onlyCurrent,
+        only_current: temporalWindow || layer === "perimeters" ? false : filters.onlyCurrent,
+        observed_from: temporalWindow?.observedFrom,
+        observed_to: temporalWindow?.observedTo,
+        perimeter_period: layer === "perimeters" ? perimeterPeriods?.join(",") : undefined,
         limit: LAYER_PAGE_SIZE,
         offset,
         format: "geojson",
@@ -689,6 +849,15 @@ export async function getCivilLayer(
   return layer === "detections" ? detectionAreas(collection) : collection;
 }
 
+export async function getFirmsTimeline(filters: CivilFilters): Promise<FirmsTimeline> {
+  return request<FirmsTimeline>(
+    `/civil/detections/timeline?${queryString({
+      bbox: filters.bbox,
+      min_confidence: filters.minConfidence,
+    })}`,
+  );
+}
+
 export async function searchCivilMunicipality(municipality: string): Promise<CivilCollection> {
   return request<CivilCollection>(
     `/civil/search/municipality?${queryString({ municipality, limit: 50 })}`,
@@ -699,4 +868,12 @@ export async function lookupMunicipalities(query: string): Promise<MunicipalityL
   return request<MunicipalityLookupResponse>(
     `/civil/municipalities/search?${queryString({ q: query, limit: 8 })}`,
   );
+}
+
+export async function getOsintIncidentDetail(incidentId: string): Promise<OsintIncidentDetail> {
+  return request<OsintIncidentDetail>(`/civil/osint/incidents/${incidentId}`);
+}
+
+export async function getInstitutionalXAccounts(): Promise<InstitutionalXAccountsResponse> {
+  return request<InstitutionalXAccountsResponse>("/civil/osint/x-accounts");
 }

@@ -1,5 +1,7 @@
 # Fase 1: bootstrap del monorepo
 
+> Document historic de la primera entrega. Estat vigent: [`current-state.md`](current-state.md).
+
 ## Abast implementat
 
 - Monorepo amb `apps/web`, `apps/api`, `workers`, `packages`, `infrastructure`, `docs` i `tests`.

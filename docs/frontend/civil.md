@@ -1,79 +1,58 @@
-# Civil Portal
+# Dashboard Civil
 
-The Civil portal is implemented at `/civil` and consumes only the public Civil API under `/civil/*`.
+Ruta: `/civil`. Consumeix exclusivament l'API publica `/civil/*`.
 
-This portal is the active product priority. Development of the professional dashboard remains deferred until the Civil portal is accepted as publishable.
+## Experiencia actual
 
-## Data Flow
+El mapa es la superficie principal. Tots els controls viuen dins del mapa:
 
-The page uses TanStack Query to load:
+- cerca de municipi a dalt a l'esquerra;
+- mini llistes scrollejables d'incidents i d'avisos/cronologia;
+- filtre de capes;
+- llegenda oberta per defecte a baix a la dreta;
+- popup central `Carregant dades al mapa` durant la carrega inicial;
+- panell de detall complet sota el mapa.
 
-- `/civil/incidents`
-- `/civil/notices`
-- `/civil/detections?format=geojson`
-- `/civil/perimeters?format=geojson`
-- `/civil/evacuations?format=geojson`
-- `/civil/restrictions?format=geojson`
-- `/civil/risk?format=geojson`
-- `/civil/smoke?format=geojson`
+Seleccionar una entrada centra el mapa nomes quan disposa d'una geometria valida. No s'utilitza cap `fitBounds` global com a fallback. Els controls de la dreta mantenen marge respecte dels botons de zoom de MapLibre.
 
-No simulated data is rendered in production. Empty API responses become explicit empty states. The separate road-network layer is not requested or rendered by the current UI; public road impacts are presented under `Restriccions a Carreteres`.
+## Capes
 
-## Map Layers
+- **FIRMS**: totes les deteccions del dia seleccionat; el selector temporal agrupa per dia, no per moment. `Punts FIRMS` esta desactivada inicialment, pero els grups i la resta de capes FIRMS continuen visibles. Les deteccions no s'oculten dins d'un perimetre EFFIS.
+- **EFFIS actual**: perimetres de menys de set dies, visibles per defecte, amb farciment gris clicable.
+- **Incendis d'aquest any**: entre set dies i un any, desactivada per defecte.
+- **Historic d'incendis**: mes d'un any, desactivada per defecte.
+- **Avisos socials**: publicacions X/Nitter independents en blau, separades visualment dels incendis.
+- **ES-Alert, avisos i carreteres**: geometries oficials o inferides amb la seva procedencia. Restriccions per incendi o obstacle ambiental en taronja; la resta en lila.
 
-- FIRMS detections are static sensor footprints grouped into polygons that retain internal holes.
-- A red, clickable FIRMS group pin is placed at an interior point and exposes count, oldest/newest detection and area in the popup.
-- Original FIRMS hotspots can be enabled independently.
-- Road restrictions follow locally resolved CNIG road geometry.
-- Fire and environmental-obstruction restrictions are bright orange; other restrictions are translucent purple.
-- The former dashed contextual road line is intentionally not displayed.
-- Layer visibility is applied directly through MapLibre without reconstructing the map.
+Els popups EFFIS mostren data d'inici, data d'extincio nomes si esta confirmada, hashtag i l'accio `Veure tota la informacio`. El detall inferior agrega perimetres, deteccions, cronologia i publicacions relacionades.
 
-## Map Tiles
+## Dades i estat URL
 
-The default development basemap uses:
+TanStack Query carrega incidents, deteccions, cronologia FIRMS, perimetres, avisos, ES-Alert, restriccions, risc, fum i OSINT. Una fallada parcial no inutilitza la resta del mapa.
+
+L'URL conserva municipi, seleccio i viewport:
+
+```text
+/civil?municipality=Girona&selected=...&lng=2.82&lat=41.98&z=8
+```
+
+El viewport s'actualitza amb `history.replaceState`; moure el mapa no remunta la pagina ni torna a descarregar totes les capes. La cache de capes es de cinc minuts.
+
+## Cerca geografica
+
+`GET /civil/municipalities/search` retorna nom oficial, codi INE, centre i `bbox`. La resolucio de toponims OSINT exigeix coincidencia exacta o contextual: `Santa Coloma de Queralt` no es replica a altres `Santa Coloma`. `Agost` esta exclosa de la geocodificacio textual per evitar confondre el municipi amb el mes.
+
+## Mapa base
 
 ```text
 NEXT_PUBLIC_MAP_TILE_URL=https://tile.openstreetmap.org/{z}/{x}/{y}.png
 ```
 
-This is suitable for local development and modest testing. The URL is configurable because public production traffic
-should use a tile provider with quotas, support, and a service-level expectation, or a self-hosted tile service.
+La URL es configurable. Produccio ha d'utilitzar un proveidor amb quota i condicions adequades o tiles propis.
 
-## URL State
+## Estats degradats
 
-The portal synchronizes public state into the URL:
-
-```text
-/civil?bbox=-10,35,5,44&municipality=Girona&selected=...&lng=2.82&lat=41.98&z=8
-```
-
-The map viewport also writes `lng`, `lat`, and `z` so links preserve context. Viewport changes use the browser History API rather than Next.js navigation, so pan and zoom do not remount the page or refetch layers. TanStack Query keeps layer data fresh for five minutes and does not refetch on window focus.
-
-## Municipality Search
-
-Municipality search uses the public IGN-based ArcGIS service `municipios_espana`. The Civil API proxies this as:
-
-```text
-GET /civil/municipalities/search?q=Molins&limit=8
-```
-
-Each match returns the official name, INE code, centroid coordinates, attribution, and a padded `bbox`. Searching changes the map focus only; it does not hide or filter the statewide data already shown.
-
-## Accessibility
-
-Essential information is available outside the map:
-
-- incident list;
-- notices and timeline area;
-- evacuation, restriction, and road counts;
-- clickable map popups;
-- source status;
-- methodology;
-- legend.
-
-Interactive controls are native inputs and buttons with visible focus styles inherited from the global CSS.
-
-## Degraded States
-
-If a layer request fails, the portal keeps the rest of the page usable and shows a predictable error message. If a layer has no data, the corresponding panel stays visible with a zero count. A loading overlay communicates initial map-data loading.
+- Error d'una capa: la resta continua operativa i la capa mostra error.
+- Resposta buida: estat buit i recompte zero, sense dades simulades.
+- Carrega inicial: popup centrat dins del mapa.
+- Incident sense geometria fiable: visible al detall, sense zoom artificial.

@@ -20,9 +20,21 @@ def create_celery_app(name: str, default_queue: str) -> Celery:
                 "task": "ingestion.run_firms",
                 "schedule": 900.0,
             },
+            "run-emergency-osint-every-5-minutes": {
+                "task": "ingestion.run_emergency_osint",
+                "schedule": 300.0,
+            },
+            "run-effis-burnt-areas-daily": {
+                "task": "ingestion.run_effis_burnt_areas",
+                "schedule": 86400.0,
+            },
             "run-aemet-every-60-minutes": {
                 "task": "ingestion.run_aemet",
                 "schedule": 3600.0,
+            },
+            "run-aemet-alerts-every-10-minutes": {
+                "task": "ingestion.run_aemet_alerts",
+                "schedule": 600.0,
             },
             "run-ign-transport-daily": {
                 "task": "ingestion.run_ign_transport",

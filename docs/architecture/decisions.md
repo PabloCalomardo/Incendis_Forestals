@@ -60,10 +60,10 @@ L'especificacio demana MinIO o S3 compatible i prohibeix credencials reals al re
 Estat: provisional
 
 Decisio:
-No es tria encara entre Valhalla, GraphHopper o OpenRouteService. La decisio queda diferida fins a la Fase 11.
+No es tria encara entre Valhalla, GraphHopper o OpenRouteService. La decisio queda diferida fins al desenvolupament del portal professional.
 
 Motiu:
-La Fase 11 exigeix triar-ne un, justificar-lo i documentar-lo a partir de dades viaries i requisits operatius reals.
+Cal triar-ne un i justificar-lo a partir de dades viaries i requisits operatius reals; encara no forma part del Dashboard Civil.
 
 ## ADR-007: Proveidor OIDC pendent
 
@@ -140,7 +140,7 @@ Permet estabilitzar primer la proposta publica, les dades, el rendiment i el des
 Estat: acceptada el 27-07-2026
 
 Decisio:
-La geometria de restriccions DATEX es resol primer contra IGR-RT de CNIG importat localment a PostGIS. El nom oficial i els PK delimiten un cami dins d'un graf format exclusivament pels trams de la mateixa carretera. DGT PK, Overpass i OSRM son fallbacks.
+La geometria DATEX es resol primer contra IGR-RT de CNIG importat localment a PostGIS. El graf per `road_ref` i PK es complementa amb una fusio/subseccio PostGIS que suporta taules sense clau primaria. Un lock consultiu coordina ingestio i reparacio. DGT PK, Overpass, OSRM i coordenades DATEX son fallbacks etiquetats.
 
 Motiu:
 Evita linies rectes, desviaments per carreteres veines, limits de peticions i processament manual carretera per carretera. Les dades pesades queden fora de Git i es carreguen amb `npm run roads:import`.
@@ -154,3 +154,33 @@ El pan i zoom de MapLibre actualitzen `lng`, `lat` i `z` amb `history.replaceSta
 
 Motiu:
 El viewport es estat de presentacio. Remuntar la ruta o tornar a consultar la mateixa cobertura en cada `moveend` empitjora latencia, carrega de l'API i experiencia d'usuari sense aportar dades noves.
+
+## ADR-016: Incident d'incendi canonic centrat en EFFIS
+
+Estat: acceptada el 29-07-2026
+
+Decisio:
+Els perimetres EFFIS recents son la identitat espacial principal. Poligons contemporanis es poden agrupar amb un llindar dependent de l'area i evidencies de hashtag, territori i temps. FIRMS i OSINT s'hi associen sense ocultar ni eliminar els originals.
+
+Motiu:
+Un incendi gran pot tenir diversos focus i poligons. Centralitzar-ne el detall evita duplicats, pero exigeix conservar la procedencia i rebutjar coincidencies febles.
+
+## ADR-017: ES-Alert com a registre d'evidencies
+
+Estat: acceptada el 29-07-2026
+
+Decisio:
+Sense feed public complet, el sistema diferencia `announced`, `confirmed_sent`, `presumed_received`, `cancelled`, `test` i no verificat. Comunicacions oficials tenen prioritat; casos ambigus entren a revisio humana.
+
+Motiu:
+Una publicacio individual o una recepcio percebuda no demostren un enviament oficial.
+
+## ADR-018: Instantania bona protegida
+
+Estat: acceptada el 29-07-2026
+
+Decisio:
+Una ingestio fallida, parcial, bloquejada o sospitosament buida no substitueix ni desactiva l'ultima instantania valida.
+
+Motiu:
+Deadlocks i fallades temporals de fonts externes no han de fer desapareixer dades actives del dashboard.

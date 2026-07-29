@@ -1,5 +1,7 @@
 # Prompts d’implementació per a Codex
 
+> **Registre historic.** No representa la cua de treball actual. Consulta [`docs/current-state.md`](docs/current-state.md) i [`docs/implementation-plan.md`](docs/implementation-plan.md).
+
 ## Canvi de model de desenvolupament (27-07-2026)
 
 El desenvolupament seqüencial per fases queda **tancat**. Les fases 1 a 7 es conserven en aquest document com a registre històric de la construcció inicial, però ja no determinen l'ordre de treball.

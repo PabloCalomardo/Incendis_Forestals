@@ -36,3 +36,15 @@ def put_text_object(key: str, content: str, content_type: str = "text/plain") ->
         ContentType=content_type,
     )
     return f"s3://{settings.minio_bucket_raw}/{key}"
+
+
+def put_binary_object(key: str, content: bytes, content_type: str = "application/octet-stream") -> str:
+    settings = get_settings()
+    client = create_s3_client()
+    client.put_object(
+        Bucket=settings.minio_bucket_raw,
+        Key=key,
+        Body=content,
+        ContentType=content_type,
+    )
+    return f"s3://{settings.minio_bucket_raw}/{key}"

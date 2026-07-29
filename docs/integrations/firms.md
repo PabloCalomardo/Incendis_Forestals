@@ -64,4 +64,6 @@ Fonts consultades:
 
 - Sense `FIRMS_MAP_KEY`, el connector no s'executa.
 - La interpretacio de confianca FIRMS pot ser lletra (`l`, `n`, `h`) o numerica segons producte.
-- No es fusionen incidents encara; aixo pertany a fases posteriors de normalitzacio.
+- La UI mostra per defecte totes les deteccions de l'ultim dia disponible i agrupa l'historic per dia al slider temporal.
+- La capa `Punts FIRMS` esta apagada inicialment; grups i deteccions associades continuen disponibles.
+- Les deteccions proxim es vinculen a incidents EFFIS canonics, pero no s'eliminen ni s'oculten quan queden dins d'un poligon.

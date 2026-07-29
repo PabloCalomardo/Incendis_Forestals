@@ -16,6 +16,7 @@ from app.domain.models import DataIngestionRun, DataSource, FireDetection
 from app.infrastructure.object_storage import put_text_object
 from app.ingestion.base import BaseConnector, ConnectorMetrics, ConnectorRunResult, ValidationError
 from app.ingestion.config import FirmsConnectorConfig
+from app.ingestion.incident_reconciliation import reconcile_recent_fires
 
 SPAIN_BBOX = (-10.0, 35.5, 4.5, 44.5)
 
@@ -59,10 +60,7 @@ class FirmsConnector(BaseConnector[str, FirmsDetection]):
         if not self.config.map_key:
             raise ValidationError("FIRMS_MAP_KEY is required to execute NASA FIRMS connector")
 
-        url = (
-            f"{self.config.base_url}/api/area/csv/{self.config.map_key}/"
-            f"{self.config.source}/{self.config.area}/{self.config.day_range}"
-        )
+        url = f"{self.config.base_url}/api/area/csv/{self.config.map_key}/" f"{self.config.source}/{self.config.area}/{self.config.day_range}"
         last_error: Exception | None = None
         for attempt in range(1, self.config.max_retries + 1):
             try:
@@ -177,13 +175,20 @@ class FirmsConnector(BaseConnector[str, FirmsDetection]):
             )
             persisted += 1
 
+        await self.session.flush()
+        reconciliation = await reconcile_recent_fires(self.session)
+
         run.status = IngestionRunStatus.COMPLETED
         run.finished_at = datetime.now(UTC)
         run.received_count = len(records)
         run.duplicate_count = duplicate_count
         run.persisted_count = persisted
         run.discarded_count = 0
-        run.metrics = {"source": self.config.source, "area": self.config.area}
+        run.metrics = {
+            "source": self.config.source,
+            "area": self.config.area,
+            "reconciliation": reconciliation,
+        }
         await self.session.commit()
         return ConnectorMetrics(
             received=len(records),
@@ -291,9 +296,7 @@ class FirmsConnector(BaseConnector[str, FirmsDetection]):
     async def _existing_hashes(self, hashes: list[str]) -> set[str]:
         if not hashes:
             return set()
-        result = await self.session.execute(
-            select(FireDetection.deduplication_hash).where(FireDetection.deduplication_hash.in_(hashes))
-        )
+        result = await self.session.execute(select(FireDetection.deduplication_hash).where(FireDetection.deduplication_hash.in_(hashes)))
         return {hash_value for hash_value in result.scalars() if hash_value is not None}
 
     def _deduplication_hash(self, row: dict[str, str]) -> str:

@@ -17,6 +17,7 @@ from app.domain.models import DataIngestionRun, DataSource, RestrictionZone, Roa
 from app.infrastructure.object_storage import put_text_object
 from app.ingestion.base import BaseConnector, ConnectorMetrics, ConnectorRunResult, ValidationError
 from app.ingestion.config import EtrafficConnectorConfig
+from app.ingestion.locks import try_acquire_traffic_ingestion_lock
 from app.ingestion.spatial import linestring_wkt
 
 ETRAFFIC_DECODER_KEY = ord("f")
@@ -201,9 +202,19 @@ class DgtEtrafficConnector(BaseConnector[str, EtrafficRecord]):
         started_at = datetime.now(UTC)
         raw: str | None = None
         try:
+            if not await try_acquire_traffic_ingestion_lock(self.session):
+                return ConnectorRunResult(
+                    self.name,
+                    "skipped_locked",
+                    started_at,
+                    datetime.now(UTC),
+                    ConnectorMetrics(errors=["Another traffic ingestion is already running"]),
+                )
             raw = await self.fetch()
             self.validate(raw)
             unique, payload_duplicates = self.deduplicate(self.normalize(raw))
+            if not unique:
+                raise ValidationError("DGT eTraffic normalization produced no traffic restrictions")
             metrics = await self.persist(unique, raw)
             metrics.duplicated += payload_duplicates
             return ConnectorRunResult(self.name, "completed", started_at, datetime.now(UTC), metrics)

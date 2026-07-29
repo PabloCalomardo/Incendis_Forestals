@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { detectionAreas, getCivilLayer, type CivilFeature, type CivilFeatureCollection } from "./civil";
+import {
+  detectionAreas,
+  getCivilLayer,
+  type CivilFeature,
+  type CivilFeatureCollection,
+} from "./civil";
 
 const METERS_PER_DEGREE = 111_320;
 
@@ -57,9 +62,15 @@ describe("detectionAreas", () => {
       expect(result.features[0].geometry.coordinates).toHaveLength(2);
     }
     expect(result.features[0].properties.properties.detection_count).toBe(8);
-    expect(Number(result.features[0].properties.properties.focus_area_square_meters)).toBeGreaterThan(0);
-    expect(result.features[0].properties.properties.oldest_detection_at).toBe("2026-07-26T12:00:00Z");
-    expect(result.features[0].properties.properties.newest_detection_at).toBe("2026-07-26T12:00:00Z");
+    expect(
+      Number(result.features[0].properties.properties.focus_area_square_meters),
+    ).toBeGreaterThan(0);
+    expect(result.features[0].properties.properties.oldest_detection_at).toBe(
+      "2026-07-26T12:00:00Z",
+    );
+    expect(result.features[0].properties.properties.newest_detection_at).toBe(
+      "2026-07-26T12:00:00Z",
+    );
     expect(
       Number(result.features[0].properties.properties.footprint_grid_angle_degrees),
     ).toBeCloseTo(12, 1);
@@ -68,7 +79,14 @@ describe("detectionAreas", () => {
   it("keeps generated group ids compact enough for map renderers", () => {
     const features: CivilFeature[] = [];
     for (let index = 0; index < 50; index += 1) {
-      features.push(viirsFeature(`550e8400-e29b-41d4-a716-${String(index).padStart(12, "0")}`, index * 400, 0, 0));
+      features.push(
+        viirsFeature(
+          `550e8400-e29b-41d4-a716-${String(index).padStart(12, "0")}`,
+          index * 400,
+          0,
+          0,
+        ),
+      );
     }
     const collection: CivilFeatureCollection = { type: "FeatureCollection", features };
 
@@ -81,10 +99,7 @@ describe("detectionAreas", () => {
   it("dissolves adjacent grid cells before projecting them to the map", () => {
     const collection: CivilFeatureCollection = {
       type: "FeatureCollection",
-      features: [
-        viirsFeature("first", 0, 0, 9),
-        viirsFeature("second", 400, 0, 9),
-      ],
+      features: [viirsFeature("first", 0, 0, 9), viirsFeature("second", 400, 0, 9)],
     };
 
     const result = detectionAreas(collection);
@@ -100,16 +115,27 @@ describe("detectionAreas", () => {
   it("groups diagonal VIIRS grid neighbours into the same reconstructed area", () => {
     const collection: CivilFeatureCollection = {
       type: "FeatureCollection",
-      features: [
-        viirsFeature("first", 0, 0, 9),
-        viirsFeature("second", 400, 400, 9),
-      ],
+      features: [viirsFeature("first", 0, 0, 9), viirsFeature("second", 400, 400, 9)],
     };
 
     const result = detectionAreas(collection);
 
     expect(result.features).toHaveLength(1);
     expect(result.features[0].properties.properties.detection_count).toBe(2);
+  });
+
+  it("keeps spatially adjacent FIRMS detections from different days in separate groups", () => {
+    const yesterday = viirsFeature("yesterday", 0, 0, 0);
+    const today = viirsFeature("today", 400, 0, 0);
+    today.properties.observed_at = "2026-07-27T12:00:00Z";
+    today.properties.updated_at = "2026-07-27T12:00:00Z";
+
+    const result = detectionAreas({ type: "FeatureCollection", features: [yesterday, today] });
+
+    expect(result.features).toHaveLength(2);
+    expect(
+      result.features.map((feature) => feature.properties.properties.newest_detection_at),
+    ).toEqual(["2026-07-26T12:00:00Z", "2026-07-27T12:00:00Z"]);
   });
 });
 
@@ -148,5 +174,21 @@ describe("getCivilLayer", () => {
 
     expect(result.features).toHaveLength(217);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("uses the ES-Alert endpoint for the former evacuation layer slot", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ type: "FeatureCollection", features: [] }),
+    } as Response);
+
+    await getCivilLayer("evacuations", {
+      bbox: "-10,35,5,45",
+      municipality: "",
+      minConfidence: 0,
+      onlyCurrent: true,
+    });
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain("/civil/es-alerts?");
   });
 });

@@ -28,6 +28,25 @@ class FirmsConnectorConfig:
 
 
 @dataclass(frozen=True)
+class EffisConnectorConfig:
+    wfs_url: str
+    type_name: str
+    area_bbox: str
+    timeout_seconds: int
+    max_retries: int
+
+    @classmethod
+    def from_settings(cls, settings: Settings) -> "EffisConnectorConfig":
+        return cls(
+            wfs_url=settings.effis_wfs_url,
+            type_name=settings.effis_type_name,
+            area_bbox=settings.effis_area_bbox,
+            timeout_seconds=settings.effis_timeout_seconds,
+            max_retries=settings.effis_max_retries,
+        )
+
+
+@dataclass(frozen=True)
 class AemetConnectorConfig:
     api_key: str
     base_url: str
@@ -47,6 +66,21 @@ class AemetConnectorConfig:
             max_retries=settings.aemet_max_retries,
             forecast_municipalities=municipalities,
             forecast_locations=locations,
+        )
+
+
+@dataclass(frozen=True)
+class AemetAlertsConnectorConfig:
+    feed_url: str
+    timeout_seconds: int
+    max_retries: int
+
+    @classmethod
+    def from_settings(cls, settings: Settings) -> "AemetAlertsConnectorConfig":
+        return cls(
+            feed_url=settings.aemet_alerts_feed_url,
+            timeout_seconds=settings.aemet_alerts_timeout_seconds,
+            max_retries=settings.aemet_alerts_max_retries,
         )
 
 

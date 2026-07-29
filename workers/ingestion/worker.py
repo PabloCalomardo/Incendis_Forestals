@@ -1,9 +1,12 @@
 from app.infrastructure.database import get_session_factory
 from app.ingestion.aemet import AemetConnector
+from app.ingestion.aemet_alerts import AemetAlertsConnector
 from app.ingestion.datex import DatexTrafficConnector
+from app.ingestion.effis import EffisBurntAreasConnector
 from app.ingestion.etraffic import DgtEtrafficConnector
 from app.ingestion.firms import FirmsConnector
 from app.ingestion.ign import IgnTransportConnector
+from app.ingestion.osint import EmergencyOsintConnector
 from app.ingestion.osm import OsmRoadConnector
 from app.ingestion.proteccio_civil import ProteccioCivilPlansConnector
 from shared.celery_app import create_celery_app
@@ -23,6 +26,24 @@ def run_firms() -> dict[str, object]:
     async def _run() -> dict[str, object]:
         async with get_session_factory()() as session:
             result = await FirmsConnector(session).execute()
+            return {
+                "connector": result.connector_name,
+                "status": result.status,
+                "received": result.metrics.received,
+                "duplicates": result.metrics.duplicated,
+                "persisted": result.metrics.persisted,
+            }
+
+    return asyncio.run(_run())
+
+
+@celery_app.task(name="ingestion.run_effis_burnt_areas")  # type: ignore[misc]
+def run_effis_burnt_areas() -> dict[str, object]:
+    import asyncio
+
+    async def _run() -> dict[str, object]:
+        async with get_session_factory()() as session:
+            result = await EffisBurntAreasConnector(session).execute()
             return {
                 "connector": result.connector_name,
                 "status": result.status,
@@ -150,5 +171,37 @@ def run_proteccio_civil_plans() -> dict[str, object]:
                 "duplicates": result.metrics.duplicated,
                 "persisted": result.metrics.persisted,
             }
+
+    return asyncio.run(_run())
+
+
+@celery_app.task(name="ingestion.run_aemet_alerts")  # type: ignore[misc]
+def run_aemet_alerts() -> dict[str, object]:
+    import asyncio
+
+    async def _run() -> dict[str, object]:
+        async with get_session_factory()() as session:
+            result = await AemetAlertsConnector(session).execute()
+            return {
+                "connector": result.connector_name,
+                "status": result.status,
+                "received": result.metrics.received,
+                "duplicates": result.metrics.duplicated,
+                "persisted": result.metrics.persisted,
+            }
+
+    return asyncio.run(_run())
+
+
+@celery_app.task(name="ingestion.run_emergency_osint")  # type: ignore[misc]
+def run_emergency_osint() -> dict[str, object]:
+    import asyncio
+
+    async def _run() -> dict[str, object]:
+        async with get_session_factory()() as session:
+            result = await EmergencyOsintConnector(session).execute()
+            return {"connector": result.connector_name, "status": result.status,
+                    "received": result.metrics.received, "duplicates": result.metrics.duplicated,
+                    "persisted": result.metrics.persisted, "errors": result.metrics.errors}
 
     return asyncio.run(_run())

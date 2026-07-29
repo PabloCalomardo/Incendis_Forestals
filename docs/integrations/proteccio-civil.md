@@ -25,3 +25,24 @@ PROTECCIO_CIVIL_MAX_RETRIES=3
 ```
 
 No cal API key.
+
+## Cobertura estatal
+
+Connector implementat a `app.ingestion.aemet_alerts.AemetAlertsConnector`.
+
+Font oficial AEMET Meteoalerta, cobertura de tot Espanya i format CAP 1.2:
+
+`https://www.aemet.es/documentos_d/eltiempo/prediccion/avisos/rss/CAP_AFAE_wah_RSS.xml`
+
+El connector desa titular, descripcio, instruccions, vigencia, nivell groc/taronja/vermell i el `bbox` calculat a partir del poligon CAP. S'executa cada 10 minuts.
+
+```env
+AEMET_ALERTS_FEED_URL=https://www.aemet.es/documentos_d/eltiempo/prediccion/avisos/rss/CAP_AFAE_wah_RSS.xml
+AEMET_ALERTS_TIMEOUT_SECONDS=30
+AEMET_ALERTS_MAX_RETRIES=3
+```
+
+Fonts complementaries revisades:
+
+- Pais Basc: Euskalmet `Alerts / Forecast` requereix registre gratuit i claus API/JWT. AEMET ja cobreix el territori estatal complet; Euskalmet queda com a futura capa autonomica de mes detall.
+- RAN del Ministerio del Interior/CENEM: visor public a `https://ran-vmap.proteccioncivil.es/`, sense endpoint public documentat. No se'n consumeixen serveis interns ni es fa scraping.

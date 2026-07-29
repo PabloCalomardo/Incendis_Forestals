@@ -70,6 +70,8 @@ Interficie operativa protegida amb dashboard, mapa tecnic, control temporal, fon
 
 El seu desenvolupament queda ajornat fins a l'acceptacio explicita del Dashboard Civil publicable.
 
+Estat: no implementat com a producte operatiu.
+
 API:
 Superficie HTTP amb endpoints publics i interns, validacio, errors consistents, correlation IDs, cache i OpenAPI. Ha de filtrar informacio sensible segons portal i rol.
 
@@ -91,11 +93,15 @@ Operacions PostGIS/GDAL/Shapely/GeoPandas, indexs espacials, validacio, reparaci
 Prediccio de fum:
 Servei substituible que genera poligons probabilistics amb inputs, incertesa, versio i advertiments.
 
+Estat: contracte i exposicio publica preparats; no es una prediccio operativa validada.
+
 Deteccio de carreteres afectades:
 Classificacio de trams segons perimetres, fum, restriccions, edat de dades i tipus de font.
 
 Routing:
 Motor autoallotjat amb perfil d'emergencia, exclusions, penalitzacions, alternatives i explicacio de costos.
+
+Estat: ajornat amb el portal professional. La reparacio de geometria viaria CNIG no implica routing operatiu.
 
 Notificacions:
 Esdeveniments en temps real amb permisos, deduplicacio, prioritat i traçabilitat.

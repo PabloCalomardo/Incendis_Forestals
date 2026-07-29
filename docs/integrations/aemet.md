@@ -39,4 +39,4 @@ La resposta d'AEMET funciona amb doble crida: la primera resposta inclou una URL
 
 - Cal clau `AEMET_API_KEY`.
 - La prediccio municipal requereix coordenades configurades a `AEMET_FORECAST_LOCATIONS_JSON`; l'endpoint de prediccio no dona una geometria directa.
-- La qualitat queda registrada de forma basica; el model explicable de qualitat queda per Fase 5.
+- La qualitat i procedencia queden registrades; els avisos CAP estatals es documenten a `proteccio-civil.md`.

@@ -30,12 +30,23 @@ class Settings(BaseSettings):
     firms_timeout_seconds: int = 30
     firms_max_retries: int = 3
 
+    effis_wfs_url: str = "https://maps.effis.emergency.copernicus.eu/effis"
+    effis_type_name: str = "ms:modis.ba.poly"
+    effis_area_bbox: str = "-10.0,35.5,4.5,44.5"
+    effis_timeout_seconds: int = 300
+    effis_max_retries: int = 3
+
     aemet_api_key: str = Field(default="", repr=False)
     aemet_base_url: str = "https://opendata.aemet.es/opendata"
     aemet_timeout_seconds: int = 30
     aemet_max_retries: int = 3
     aemet_forecast_municipalities: str = "28079"
     aemet_forecast_locations_json: str = '{"28079":{"name":"Madrid","latitude":40.4168,"longitude":-3.7038}}'
+    aemet_alerts_feed_url: str = (
+        "https://www.aemet.es/documentos_d/eltiempo/prediccion/avisos/rss/CAP_AFAE_wah_RSS.xml"
+    )
+    aemet_alerts_timeout_seconds: int = 30
+    aemet_alerts_max_retries: int = 3
 
     ign_wfs_base_url: str = "https://api-features.idee.es"
     ign_transport_typename: str = "roadlink"
@@ -82,6 +93,19 @@ class Settings(BaseSettings):
     )
     proteccio_civil_timeout_seconds: int = 30
     proteccio_civil_max_retries: int = 3
+
+    osint_timeout_seconds: int = 20
+    osint_ign_municipalities_url: str = (
+        "https://services1.arcgis.com/nCKYwcSONQTkPA4K/arcgis/rest/services/muni/FeatureServer/0/query"
+    )
+    x_bearer_token: str = Field(default="", repr=False)
+    osint_nitter_enabled: bool = True
+    osint_nitter_base_url: str = "https://nitter.net"
+    osint_x_query: str = (
+        '("ES-Alert" OR confinamiento OR confinament OR evacuacion OR evacuacio OR "plan de emergencia") '
+        "(incendio OR incendi OR emergencia OR emergencia) -is:retweet"
+    )
+    osint_x_official_accounts: str = "proteccioncivil,interiorgob,emergenciescat,112cv,112_sosdeiak"
 
     @property
     def cors_origins(self) -> list[str]:

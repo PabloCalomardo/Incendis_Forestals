@@ -20,6 +20,7 @@ from app.domain.models import DataIngestionRun, DataSource, RestrictionZone, Roa
 from app.infrastructure.object_storage import put_text_object
 from app.ingestion.base import BaseConnector, ConnectorMetrics, ConnectorRunResult, ValidationError
 from app.ingestion.config import DatexConnectorConfig
+from app.ingestion.locks import try_acquire_traffic_ingestion_lock
 from app.ingestion.spatial import linestring_wkt
 
 CAUSE_LABELS = {
@@ -251,21 +252,41 @@ class DatexTrafficConnector(BaseConnector[DatexRawPayload, DatexRestrictionRecor
         return None
 
     async def enrich_pending_routes(self, limit: int = 10, road_ref: str | None = None) -> dict[str, int]:
+        if not await try_acquire_traffic_ingestion_lock(self.session):
+            return {"selected": 0, "enriched": 0, "pending": 0}
         metadata = RestrictionZone.original_metadata
         attempts = func.coalesce(metadata["road_enrichment_attempts"].astext.cast(Integer), 0)
         conditions = [
             RestrictionZone.expires_at.is_(None),
             metadata["geometry_strategy"].astext == "nap_datex_coordinates",
             metadata["road_ref"].astext.is_not(None),
-            metadata["kilometer_range"].astext.is_not(None),
             func.ST_NPoints(RestrictionZone.geometry) <= 2,
         ]
         if road_ref:
             conditions.append(func.upper(metadata["road_ref"].astext) == road_ref.strip().upper())
+        order_by: list[Any] = [attempts.asc(), RestrictionZone.updated_at.asc()]
+        cnig_available = await self.session.execute(select(func.to_regclass("public.cnig_road_segments")))
+        if cnig_available.scalar_one_or_none() is not None:
+            order_by.insert(
+                0,
+                text(
+                    """
+                    CASE WHEN upper(restriction_zones.original_metadata->>'road_ref') IN (
+                        SELECT upper(nombre)
+                        FROM cnig_road_segments
+                        WHERE nombre IS NOT NULL
+                        UNION
+                        SELECT upper(codigo)
+                        FROM cnig_road_segments
+                        WHERE codigo IS NOT NULL
+                    ) THEN 0 ELSE 1 END
+                    """
+                ),
+            )
         result = await self.session.execute(
             select(RestrictionZone, func.ST_AsGeoJSON(RestrictionZone.geometry))
             .where(*conditions)
-            .order_by(attempts.asc(), RestrictionZone.updated_at.asc())
+            .order_by(*order_by)
             .limit(limit)
             .with_for_update(skip_locked=True)
         )
@@ -317,6 +338,17 @@ class DatexTrafficConnector(BaseConnector[DatexRawPayload, DatexRestrictionRecor
                     original_metadata=next_metadata,
                 )
             )
+            if matched.original_metadata.get("geometry_strategy") != "nap_datex_coordinates":
+                base_hash = (zone.deduplication_hash or "").removeprefix("restriction:")
+                if base_hash and matched.segment_wkts:
+                    await self.session.execute(
+                        update(RoadSegment)
+                        .where(RoadSegment.deduplication_hash == f"segment:{base_hash}:0")
+                        .values(
+                            geometry=WKTElement(matched.segment_wkts[0], srid=4326),
+                            original_metadata={**next_metadata, "segment_index": 0},
+                        )
+                    )
         await self.session.commit()
         return {"selected": len(rows), "enriched": enriched, "pending": failed}
 
@@ -324,9 +356,19 @@ class DatexTrafficConnector(BaseConnector[DatexRawPayload, DatexRestrictionRecor
         started_at = datetime.now(UTC)
         raw: DatexRawPayload | None = None
         try:
+            if not await try_acquire_traffic_ingestion_lock(self.session):
+                return ConnectorRunResult(
+                    self.name,
+                    "skipped_locked",
+                    started_at,
+                    datetime.now(UTC),
+                    ConnectorMetrics(errors=["Another traffic ingestion is already running"]),
+                )
             raw = await self.fetch()
             self.validate(raw)
             unique, payload_duplicates = self.deduplicate(self.normalize(raw))
+            if not unique:
+                raise ValidationError("DATEX normalization produced no traffic restrictions")
             metrics = await self.persist(unique, raw)
             metrics.duplicated += payload_duplicates
             return ConnectorRunResult(self.name, "completed", started_at, datetime.now(UTC), metrics)
@@ -533,9 +575,79 @@ class DatexTrafficConnector(BaseConnector[DatexRawPayload, DatexRestrictionRecor
                         lines.append(valid_line)
             self._cnig_lines_cache[normalized_ref] = lines
         route = _road_graph_route(lines, anchors[0], anchors[1])
+        if route is None:
+            route = await self._cnig_merged_road_subsection(normalized_ref, anchors[0], anchors[1])
         if route is None or not _route_is_reasonable(route, anchors[0], anchors[1]):
             return None
         return _matched_geometry([route], "cnig_local_road_network")
+
+    async def _cnig_merged_road_subsection(
+        self,
+        road_ref: str,
+        start: list[float],
+        end: list[float],
+    ) -> list[list[float]] | None:
+        result = await self.session.execute(
+            text(
+                """
+                WITH merged AS (
+                    SELECT ST_LineMerge(ST_UnaryUnion(ST_Collect(geometry))) AS geometry
+                    FROM cnig_road_segments
+                    WHERE upper(coalesce(nombre, '')) = :road_ref
+                       OR upper(coalesce(codigo, '')) = :road_ref
+                ),
+                parts AS (
+                    SELECT (ST_Dump(geometry)).geom AS geometry
+                    FROM merged
+                ),
+                ranked AS (
+                    SELECT geometry
+                    FROM parts
+                    WHERE GeometryType(geometry) = 'LINESTRING'
+                    ORDER BY ST_Distance(geometry, ST_SetSRID(ST_Point(:start_lon, :start_lat), 4326))
+                           + ST_Distance(geometry, ST_SetSRID(ST_Point(:end_lon, :end_lat), 4326))
+                    LIMIT 1
+                ),
+                located AS (
+                    SELECT geometry,
+                           ST_LineLocatePoint(
+                               geometry,
+                               ST_SetSRID(ST_Point(:start_lon, :start_lat), 4326)
+                           ) AS start_fraction,
+                           ST_LineLocatePoint(
+                               geometry,
+                               ST_SetSRID(ST_Point(:end_lon, :end_lat), 4326)
+                           ) AS end_fraction
+                    FROM ranked
+                )
+                SELECT ST_AsGeoJSON(
+                    ST_LineSubstring(
+                        geometry,
+                        least(start_fraction, end_fraction),
+                        greatest(start_fraction, end_fraction)
+                    )
+                )
+                FROM located
+                WHERE abs(start_fraction - end_fraction) > 0.000001
+                """
+            ),
+            {
+                "road_ref": road_ref,
+                "start_lon": start[0],
+                "start_lat": start[1],
+                "end_lon": end[0],
+                "end_lat": end[1],
+            },
+        )
+        geometry_json = result.scalar_one_or_none()
+        if not geometry_json:
+            return None
+        geometry = json.loads(geometry_json)
+        if geometry.get("type") != "LineString" or not isinstance(geometry.get("coordinates"), list):
+            return None
+        route = [_coord_pair(coordinate) for coordinate in geometry["coordinates"]]
+        valid_route = [coordinate for coordinate in route if coordinate is not None]
+        return valid_route if len(valid_route) >= 2 else None
 
     async def _previous_road_geometry(
         self,

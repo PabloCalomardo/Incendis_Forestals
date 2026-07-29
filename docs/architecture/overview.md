@@ -1,76 +1,54 @@
 # Visio general d'arquitectura
 
-## Context
+Estat executable actual: consulta [`../current-state.md`](../current-state.md).
 
-La plataforma Wildfire Intelligence Platform integra fonts oficials, observades i estimades sobre incendis forestals per servir dos portals diferenciats:
-
-- Portal Civil: informacio publica clara, traçable i segura.
-- Portal Bomber: informacio operativa avançada per a serveis d'emergencia.
-
-L'especificacio principal es mante a `EspecificacioProjecte.md`. Aquest document no en duplica tots els requisits; en resumeix l'arquitectura inicial per guiar la implementacio.
-
-## Principis
-
-- Les dades oficials, observades, estimades i no verificades han de quedar separades i etiquetades.
-- Cap prediccio es pot presentar com a dada oficial.
-- Les dades originals s'han de conservar per auditoria i reprocessament.
-- Tots els resultats derivats han de mantenir traçabilitat de fonts, inputs, versions i timestamps.
-- Les funcionalitats operatives del portal Bomber han d'estar protegides per autenticacio, permisos i auditoria.
-- Quan falti documentacio oficial o entorn de proves, s'ha de registrar una decisio provisional abans d'implementar.
-
-## Vista de sistema
+## Sistema
 
 ```mermaid
 flowchart TB
-    sources[Fonts externes oficials i observades]
-    ingestion[Workers d'ingestio]
-    raw[(Object storage: respostes originals)]
-    normalization[Normalitzacio i qualitat]
+    sources[Fonts FIRMS EFFIS AEMET DGT CNIG CECAT OSINT]
+    workers[Celery: ingestio i reconciliacio]
+    raw[(MinIO: originals)]
     db[(PostgreSQL + PostGIS)]
     redis[(Redis)]
     api[FastAPI]
-    civil[Portal Civil]
-    bomber[Portal Bomber]
-    gis[Motor geoespacial]
-    smoke[Prediccio de fum]
-    routing[Routing operatiu]
-    monitoring[Observabilitat]
+    civil[Next.js Dashboard Civil]
+    review[Revisio humana OSINT]
 
-    sources --> ingestion
-    ingestion --> raw
-    ingestion --> normalization
-    normalization --> db
+    sources --> workers
+    workers --> raw
+    workers --> db
     db --> api
+    redis --> workers
     redis --> api
     api --> civil
-    api --> bomber
-    db --> gis
-    gis --> db
-    db --> smoke
-    smoke --> db
-    db --> routing
-    routing --> db
-    ingestion --> monitoring
-    api --> monitoring
-    gis --> monitoring
-    smoke --> monitoring
-    routing --> monitoring
+    review --> api
 ```
 
-## Estat inicial del repositori
+Docker Compose aixeca web, API, worker, beat, PostgreSQL/PostGIS, Redis i MinIO. El Dashboard Civil es el producte actiu. El portal professional, autenticacio OIDC, prediccio operativa i routing continuen ajornats.
 
-El repositori conte nomes documents de planificacio i `.gitignore`. No hi ha encara codi executable, configuracio de runtime, dependecies, infraestructura, tests ni CI/CD.
+## Principis vigents
 
-Fitxers existents detectats:
+- Separacio explicita entre dades oficials, observades, estimades i no verificades.
+- Originals preservats per auditoria i reprocessament.
+- Geometries internes en EPSG:4326 amb CRS original conservat.
+- Un incident canonic agrega evidencies sense eliminar-ne la procedencia.
+- Cap municipi, poligon, extincio o enviament ES-Alert s'inventa quan la font no ho confirma.
+- Una ingestio fallida, parcial o sospitosament buida no substitueix l'ultima instantania valida.
+- Fallades parcials de fonts externes no han de fer caure la resta del producte.
 
-- `.gitignore`
-- `EspecificacioProjecte.md`
-- `PlaDimplementacio.md`
+## Components implementats
 
-No s'ha detectat `Structure.md` al disc, tot i apareixer com a pestanya oberta a l'IDE.
+- Next.js, TypeScript, TanStack Query i MapLibre.
+- FastAPI, Pydantic, SQLAlchemy async i Alembic.
+- Celery/Redis per ingestio periodica.
+- PostgreSQL/PostGIS per consultes i reparacio geoespacial.
+- MinIO compatible S3 per payloads originals.
+- Connectors FIRMS, EFFIS, AEMET/CAP, IGN/CNIG, OSM, DATEX/eTraffic, CECAT i OSINT.
 
-## Conflictes detectats
+## Limitacions estructurals
 
-- L'especificacio descriu una arquitectura completa, pero el repositori encara no conte cap implementacio.
-- El model seqüencial per fases es conserva nomes com a registre historic. La dependencia vigent es de producte: primer Dashboard Civil publicable i despres Dashboard per a Professionals.
-- Les APIs externes enumerades requereixen documentacio oficial, condicions d'us i claus que encara no existeixen al repositori.
+- No existeix un registre public complet d'enviaments ES-Alert; la cobertura es una reconstruccio d'evidencies publiques.
+- X requereix credencials; Nitter i TwitterViewer son passarel.les degradables, no APIs contractuals.
+- EFFIS representa area cremada, no estat operatiu ni tasques d'extincio.
+- Les fonts administratives espanyoles continuen fragmentades per territori.

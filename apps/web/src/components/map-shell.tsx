@@ -1,7 +1,7 @@
 "use client";
 
 import "maplibre-gl/dist/maplibre-gl.css";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import maplibregl from "maplibre-gl";
 import type { StyleSpecification } from "maplibre-gl";
 import type { CivilFeature, CivilFeatureCollection, CivilLayerName } from "@/lib/api/civil";
@@ -14,7 +14,14 @@ type MapShellProps = {
   bbox?: string;
   showFirmHotspots?: boolean;
   isLoading?: boolean;
+  mapOverlay?: ReactNode;
+  focusTarget?: {
+    geometry?: CivilFeature["geometry"];
+    bbox?: string;
+    key: number;
+  } | null;
   onFeatureSelect?: (featureId: string) => void;
+  onFeatureDetails?: (featureId: string) => void;
 };
 
 const emptyFeatureCollection: CivilFeatureCollection = {
@@ -31,6 +38,7 @@ const selectableLayers = [
   "detections-heat-area",
   "detections-pin",
   "detections-pin-label",
+  "perimeters-burnt-fill",
   "perimeters-official",
   "perimeters-estimated",
   "evacuations-fill",
@@ -47,7 +55,7 @@ const layerIdsBySource: Record<CivilLayerName, string[]> = {
     "detections-pin",
     "detections-pin-label",
   ],
-  perimeters: ["perimeters-official", "perimeters-estimated"],
+  perimeters: ["perimeters-burnt-fill", "perimeters-official", "perimeters-estimated"],
   evacuations: ["evacuations-fill"],
   restrictions: ["restrictions-casing", "restrictions-line", "restrictions-point"],
   roads: [],
@@ -81,7 +89,95 @@ type FirmPoint = {
   longitude: number;
   latitude: number;
   footprint_size_meters?: number;
+  observed_at?: string | null;
 };
+
+const FIRMS_MAX_VISIBLE_AGE_DAYS = 7;
+const FIRMS_MAX_VISIBLE_AGE_MS = FIRMS_MAX_VISIBLE_AGE_DAYS * 24 * 60 * 60 * 1000;
+
+function detectionObservedAt(feature: CivilFeature) {
+  return (
+    feature.properties.properties.newest_detection_at ??
+    feature.properties.observed_at ??
+    feature.properties.updated_at
+  );
+}
+
+function firmsAgeDays(feature: CivilFeature) {
+  const observedAt = detectionObservedAt(feature);
+  if (typeof observedAt !== "string") {
+    return 0;
+  }
+  const observedTime = new Date(observedAt).getTime();
+  if (!Number.isFinite(observedTime)) {
+    return 0;
+  }
+  const observedDate = new Date(observedTime);
+  const now = new Date();
+  const observedDay = Date.UTC(
+    observedDate.getUTCFullYear(),
+    observedDate.getUTCMonth(),
+    observedDate.getUTCDate(),
+  );
+  const currentDay = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return Math.max(0, Math.floor((currentDay - observedDay) / (24 * 60 * 60 * 1000)));
+}
+
+function isVisibleFirmDetection(feature: CivilFeature) {
+  const observedAt = detectionObservedAt(feature);
+  if (typeof observedAt !== "string") {
+    return true;
+  }
+  const observedTime = new Date(observedAt).getTime();
+  return Number.isFinite(observedTime)
+    ? Date.now() - observedTime < FIRMS_MAX_VISIBLE_AGE_MS
+    : true;
+}
+
+function firmVisualProperties(feature: CivilFeature) {
+  const ageDays = Math.min(FIRMS_MAX_VISIBLE_AGE_DAYS, firmsAgeDays(feature));
+  const ageRatio = ageDays / FIRMS_MAX_VISIBLE_AGE_DAYS;
+  return {
+    firms_age_days: ageDays,
+    firms_age_opacity: Math.max(0.08, 1 - ageRatio * 0.86),
+  };
+}
+
+const firmsAgeColor = [
+  "step",
+  ["to-number", ["get", "firms_age_days", ["get", "properties"]], 0],
+  "#d92d20",
+  1,
+  "#b93824",
+  2,
+  "#942e20",
+  3,
+  "#76271c",
+  4,
+  "#5d2018",
+  5,
+  "#471814",
+  6,
+  "#32100d",
+] as const;
+
+function visibleFirmDetectionCollection(
+  collection: CivilFeatureCollection,
+): CivilFeatureCollection {
+  return {
+    ...collection,
+    features: collection.features.filter(isVisibleFirmDetection).map((feature) => ({
+      ...feature,
+      properties: {
+        ...feature.properties,
+        properties: {
+          ...feature.properties.properties,
+          ...firmVisualProperties(feature),
+        },
+      },
+    })),
+  };
+}
 
 function firmPoints(feature: CivilFeature): FirmPoint[] {
   const rawPoints = feature.properties.properties.firm_points_json;
@@ -102,6 +198,10 @@ function firmPoints(feature: CivilFeature): FirmPoint[] {
                 longitude: Number((point as FirmPoint).longitude),
                 latitude: Number((point as FirmPoint).latitude),
                 footprint_size_meters: Number((point as FirmPoint).footprint_size_meters ?? 700),
+                observed_at:
+                  typeof (point as FirmPoint).observed_at === "string"
+                    ? (point as FirmPoint).observed_at
+                    : feature.properties.observed_at,
               },
             ];
           }
@@ -124,6 +224,7 @@ function firmPoints(feature: CivilFeature): FirmPoint[] {
       longitude,
       latitude,
       footprint_size_meters: Number(feature.properties.properties.footprint_size_meters ?? 700),
+      observed_at: feature.properties.observed_at,
     },
   ];
 }
@@ -143,6 +244,7 @@ function detectionPointCollection(collection: CivilFeatureCollection): CivilFeat
             longitude: point.longitude,
             latitude: point.latitude,
             footprint_size_meters: point.footprint_size_meters ?? 700,
+            observed_at: point.observed_at ?? feature.properties.observed_at,
           },
         },
         geometry: { type: "Point", coordinates: [point.longitude, point.latitude] },
@@ -271,14 +373,62 @@ function compactValue(value: unknown) {
   return String(value);
 }
 
+function popupDate(value: unknown) {
+  const compact = compactValue(value);
+  if (!compact) return null;
+  const date = new Date(compact);
+  return Number.isNaN(date.getTime())
+    ? compact
+    : date.toLocaleDateString("ca-ES", { day: "2-digit", month: "short", year: "numeric" });
+}
+
 function popupTitle(feature: CivilFeature) {
   const properties = feature.properties.properties;
   return (
+    compactValue(properties.canonical_title) ??
     compactValue(properties.name) ??
     compactValue(properties.title) ??
     compactValue(properties.sensor) ??
     feature.properties.data_type
   );
+}
+
+const effisAttributeLabels: Record<string, string> = {
+  ID: "Identificador EFFIS",
+  FIREDATE: "Data del foc",
+  FINALDATE: "Data final",
+  LASTUPDATE: "Última actualització",
+  COUNTRY: "País",
+  PROVINCE: "Província",
+  COMMUNE: "Municipi",
+  AREA_HA: "Àrea cremada (ha)",
+  BROADLEA: "Bosc de fulla ampla (%)",
+  CONIFER: "Coníferes (%)",
+  MIXED: "Bosc mixt (%)",
+  SCLEROPH: "Vegetació esclerofil·la (%)",
+  TRANSIT: "Bosc en transició (%)",
+  OTHERNATLC: "Altres cobertes naturals (%)",
+  AGRIAREAS: "Àrees agrícoles (%)",
+  ARTIFSURF: "Superfícies artificials (%)",
+  OTHERLC: "Altres cobertes (%)",
+  PERCNA2K: "Xarxa Natura 2000 afectada (%)",
+  CLASS: "Classe EFFIS",
+};
+
+function effisPopupRows(feature: CivilFeature): Array<[string, string]> {
+  const raw = feature.properties.properties.effis_attributes_json;
+  if (typeof raw !== "string" || raw.length === 0) {
+    return [];
+  }
+  try {
+    const attributes = JSON.parse(raw) as Record<string, unknown>;
+    return Object.entries(attributes).flatMap(([key, value]) => {
+      const compact = compactValue(value);
+      return compact ? [[effisAttributeLabels[key.toUpperCase()] ?? key, compact]] : [];
+    });
+  } catch {
+    return [];
+  }
 }
 
 function popupRows(feature: CivilFeature) {
@@ -292,21 +442,67 @@ function popupRows(feature: CivilFeature) {
     ["Sentit", properties.direction],
     ["Nivell", properties.service_level],
     ["Provincia", properties.province],
+    ["Municipi", properties.commune],
+    ["Incident", properties.canonical_summary],
+    ["Hashtags", Array.isArray(properties.hashtags) ? properties.hashtags.join(", ") : null],
+    ["Data del foc", properties.fire_date],
+    ["Area cremada", properties.area_hectares ? `${properties.area_hectares} ha` : null],
+    ["Extincio", properties.extinction_operations_note],
     ["Municipis", properties.municipalities],
     ["Deteccions", properties.detection_count],
+    ["Deteccions FIRMS vinculades", properties.firms_detection_count],
+    ["FRP acumulada", properties.firms_total_frp_mw ? `${properties.firms_total_frp_mw} MW` : null],
     ["Mes antiga", properties.oldest_detection_at],
     ["Mes nova", properties.newest_detection_at],
-    ["Area", properties.focus_area_square_meters ? `${properties.focus_area_square_meters} m2` : null],
+    [
+      "Area",
+      properties.focus_area_square_meters ? `${properties.focus_area_square_meters} m2` : null,
+    ],
     ["Sensor", properties.sensor],
     ["FRP", properties.frp_mw ? `${properties.frp_mw} MW` : null],
   ];
-  return rows.flatMap(([label, value]) => {
+  const standardRows = rows.flatMap(([label, value]) => {
     const compact = compactValue(value);
     return compact ? [[label, compact] as [string, string]] : [];
   });
+  return [...standardRows, ...effisPopupRows(feature)];
 }
 
 function popupHtml(feature: CivilFeature) {
+  const properties = feature.properties.properties;
+  const isFireIncident =
+    feature.properties.data_type === "incident" ||
+    feature.properties.data_type === "fire_perimeter";
+  if (isFireIncident) {
+    const incidentId =
+      feature.properties.data_type === "incident" ? feature.properties.id : properties.incident_id;
+    const hashtags = Array.isArray(properties.hashtags) ? properties.hashtags.join(", ") : null;
+    const summary = compactValue(properties.canonical_summary ?? properties.summary);
+    const briefRows: Array<[string, unknown]> = [
+      [
+        "Inici",
+        popupDate(properties.fire_date ?? properties.started_at ?? feature.properties.observed_at),
+      ],
+      ["Extinció", popupDate(properties.final_date ?? properties.ended_at)],
+      ["Hashtag", properties.primary_hashtag ?? hashtags],
+    ];
+    const rows = briefRows
+      .flatMap(([label, value]) => {
+        const compact = compactValue(value);
+        return compact ? [[label, compact] as [string, string]] : [];
+      })
+      .map(
+        ([label, value]) =>
+          `<div class="map-popup-row"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`,
+      )
+      .join("");
+    const description = summary ? `<p class="map-popup-summary">${escapeHtml(summary)}</p>` : "";
+    const detailsButton =
+      typeof incidentId === "string" && incidentId
+        ? `<button type="button" class="map-popup-details" data-incident-details="${escapeHtml(incidentId)}">Veure tota la informació</button>`
+        : "";
+    return `<div class="map-popup"><h3>${escapeHtml(popupTitle(feature))}</h3>${description}${rows}${detailsButton}</div>`;
+  }
   const rows = popupRows(feature)
     .map(
       ([label, value]) =>
@@ -321,21 +517,29 @@ export function MapShell({
   civilLayers,
   visibleLayers,
   bbox,
-  showFirmHotspots = true,
+  showFirmHotspots = false,
   isLoading = false,
+  mapOverlay,
+  focusTarget,
   onFeatureSelect,
+  onFeatureDetails,
 }: MapShellProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
   const featureIndexRef = useRef<Map<string, CivilFeature>>(new Map());
   const onFeatureSelectRef = useRef(onFeatureSelect);
+  const onFeatureDetailsRef = useRef(onFeatureDetails);
   const [mapWarning, setMapWarning] = useState<string | null>(null);
   const setViewport = useMapViewportStore((state) => state.setViewport);
 
   useEffect(() => {
     onFeatureSelectRef.current = onFeatureSelect;
   }, [onFeatureSelect]);
+
+  useEffect(() => {
+    onFeatureDetailsRef.current = onFeatureDetails;
+  }, [onFeatureDetails]);
 
   useEffect(() => {
     if (!containerRef.current) {
@@ -471,6 +675,8 @@ export function MapShell({
               ["get", "category", ["get", "properties"]],
               "high",
               "#b42318",
+              "social",
+              "#2563eb",
               "medium",
               "#c77700",
               "#6d8f3f",
@@ -489,15 +695,47 @@ export function MapShell({
           },
         },
         {
+          id: "perimeters-burnt-fill",
+          type: "fill",
+          source: "civil-perimeters",
+          layout: { visibility: "visible" },
+          paint: {
+            "fill-color": "#626966",
+            "fill-opacity": [
+              "match",
+              ["get", "perimeter_period", ["get", "properties"]],
+              "current",
+              0.3,
+              "year",
+              0.22,
+              0.15,
+            ],
+          },
+        },
+        {
           id: "perimeters-official",
           type: "line",
           source: "civil-perimeters",
           filter: ["!=", ["get", "provenance"], "estimated"],
           layout: { visibility: "visible" },
           paint: {
-            "line-color": "#8a2f16",
-            "line-width": 3,
-            "line-opacity": ["case", ["==", ["get", "is_current"], false], 0.35, 0.9],
+            "line-color": [
+              "match",
+              ["get", "perimeter_period", ["get", "properties"]],
+              "current",
+              "#b42318",
+              "year",
+              "#c77700",
+              "#66736c",
+            ],
+            "line-width": [
+              "match",
+              ["get", "perimeter_period", ["get", "properties"]],
+              "current",
+              4,
+              2.5,
+            ],
+            "line-opacity": 0.9,
           },
         },
         {
@@ -519,8 +757,8 @@ export function MapShell({
           source: "civil-evacuations",
           layout: { visibility: "visible" },
           paint: {
-            "fill-color": "#f2c14e",
-            "fill-opacity": ["case", ["==", ["get", "is_current"], false], 0.18, 0.34],
+            "fill-color": "#dc2626",
+            "fill-opacity": ["case", ["==", ["get", "is_current"], false], 0.12, 0.28],
           },
         },
         {
@@ -534,10 +772,26 @@ export function MapShell({
               "case",
               [
                 "any",
-                ["in", "incendi", ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]]],
-                ["in", "incendio", ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]]],
-                ["in", "obstacle ambiental", ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]]],
-                ["in", "environmentalobstruction", ["downcase", ["to-string", ["get", "cause_type", ["get", "properties"]]]]],
+                [
+                  "in",
+                  "incendi",
+                  ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]],
+                ],
+                [
+                  "in",
+                  "incendio",
+                  ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]],
+                ],
+                [
+                  "in",
+                  "obstacle ambiental",
+                  ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]],
+                ],
+                [
+                  "in",
+                  "environmentalobstruction",
+                  ["downcase", ["to-string", ["get", "cause_type", ["get", "properties"]]]],
+                ],
               ],
               "#7c2d12",
               "#3b0764",
@@ -549,10 +803,26 @@ export function MapShell({
               0.2,
               [
                 "any",
-                ["in", "incendi", ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]]],
-                ["in", "incendio", ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]]],
-                ["in", "obstacle ambiental", ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]]],
-                ["in", "environmentalobstruction", ["downcase", ["to-string", ["get", "cause_type", ["get", "properties"]]]]],
+                [
+                  "in",
+                  "incendi",
+                  ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]],
+                ],
+                [
+                  "in",
+                  "incendio",
+                  ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]],
+                ],
+                [
+                  "in",
+                  "obstacle ambiental",
+                  ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]],
+                ],
+                [
+                  "in",
+                  "environmentalobstruction",
+                  ["downcase", ["to-string", ["get", "cause_type", ["get", "properties"]]]],
+                ],
               ],
               0.82,
               0.3,
@@ -570,10 +840,26 @@ export function MapShell({
               "case",
               [
                 "any",
-                ["in", "incendi", ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]]],
-                ["in", "incendio", ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]]],
-                ["in", "obstacle ambiental", ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]]],
-                ["in", "environmentalobstruction", ["downcase", ["to-string", ["get", "cause_type", ["get", "properties"]]]]],
+                [
+                  "in",
+                  "incendi",
+                  ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]],
+                ],
+                [
+                  "in",
+                  "incendio",
+                  ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]],
+                ],
+                [
+                  "in",
+                  "obstacle ambiental",
+                  ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]],
+                ],
+                [
+                  "in",
+                  "environmentalobstruction",
+                  ["downcase", ["to-string", ["get", "cause_type", ["get", "properties"]]]],
+                ],
               ],
               "#ff7a00",
               "#a855f7",
@@ -585,10 +871,26 @@ export function MapShell({
               0.25,
               [
                 "any",
-                ["in", "incendi", ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]]],
-                ["in", "incendio", ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]]],
-                ["in", "obstacle ambiental", ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]]],
-                ["in", "environmentalobstruction", ["downcase", ["to-string", ["get", "cause_type", ["get", "properties"]]]]],
+                [
+                  "in",
+                  "incendi",
+                  ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]],
+                ],
+                [
+                  "in",
+                  "incendio",
+                  ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]],
+                ],
+                [
+                  "in",
+                  "obstacle ambiental",
+                  ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]],
+                ],
+                [
+                  "in",
+                  "environmentalobstruction",
+                  ["downcase", ["to-string", ["get", "cause_type", ["get", "properties"]]]],
+                ],
               ],
               0.98,
               0.5,
@@ -606,10 +908,26 @@ export function MapShell({
               "case",
               [
                 "any",
-                ["in", "incendi", ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]]],
-                ["in", "incendio", ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]]],
-                ["in", "obstacle ambiental", ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]]],
-                ["in", "environmentalobstruction", ["downcase", ["to-string", ["get", "cause_type", ["get", "properties"]]]]],
+                [
+                  "in",
+                  "incendi",
+                  ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]],
+                ],
+                [
+                  "in",
+                  "incendio",
+                  ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]],
+                ],
+                [
+                  "in",
+                  "obstacle ambiental",
+                  ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]],
+                ],
+                [
+                  "in",
+                  "environmentalobstruction",
+                  ["downcase", ["to-string", ["get", "cause_type", ["get", "properties"]]]],
+                ],
               ],
               "#ff7a00",
               "#a855f7",
@@ -619,10 +937,26 @@ export function MapShell({
               "case",
               [
                 "any",
-                ["in", "incendi", ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]]],
-                ["in", "incendio", ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]]],
-                ["in", "obstacle ambiental", ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]]],
-                ["in", "environmentalobstruction", ["downcase", ["to-string", ["get", "cause_type", ["get", "properties"]]]]],
+                [
+                  "in",
+                  "incendi",
+                  ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]],
+                ],
+                [
+                  "in",
+                  "incendio",
+                  ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]],
+                ],
+                [
+                  "in",
+                  "obstacle ambiental",
+                  ["downcase", ["to-string", ["get", "cause", ["get", "properties"]]]],
+                ],
+                [
+                  "in",
+                  "environmentalobstruction",
+                  ["downcase", ["to-string", ["get", "cause_type", ["get", "properties"]]]],
+                ],
               ],
               "#7c2d12",
               "#3b0764",
@@ -639,8 +973,12 @@ export function MapShell({
             visibility: "visible",
           },
           paint: {
-            "fill-color": "#b42318",
-            "fill-opacity": ["case", ["==", ["get", "is_current"], false], 0.28, 0.58],
+            "fill-color": firmsAgeColor,
+            "fill-opacity": [
+              "*",
+              ["case", ["==", ["get", "is_current"], false], 0.28, 0.58],
+              ["to-number", ["get", "firms_age_opacity", ["get", "properties"]], 1],
+            ],
           },
         },
         {
@@ -651,9 +989,13 @@ export function MapShell({
             visibility: "visible",
           },
           paint: {
-            "line-color": "#8a1f16",
+            "line-color": firmsAgeColor,
             "line-width": ["interpolate", ["linear"], ["zoom"], 5, 0.4, 12, 1.2],
-            "line-opacity": ["case", ["==", ["get", "is_current"], false], 0.3, 0.68],
+            "line-opacity": [
+              "*",
+              ["case", ["==", ["get", "is_current"], false], 0.3, 0.68],
+              ["to-number", ["get", "firms_age_opacity", ["get", "properties"]], 1],
+            ],
           },
         },
         {
@@ -662,11 +1004,15 @@ export function MapShell({
           source: "civil-detection-pins",
           layout: { visibility: "visible" },
           paint: {
-            "circle-color": "#c81e1e",
+            "circle-color": firmsAgeColor,
             "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 8, 10, 13],
             "circle-stroke-color": "#ffffff",
             "circle-stroke-width": 2,
-            "circle-opacity": 0.95,
+            "circle-opacity": [
+              "*",
+              0.95,
+              ["to-number", ["get", "firms_age_opacity", ["get", "properties"]], 1],
+            ],
           },
         },
         {
@@ -681,6 +1027,11 @@ export function MapShell({
           },
           paint: {
             "text-color": "#ffffff",
+            "text-opacity": [
+              "*",
+              0.95,
+              ["to-number", ["get", "firms_age_opacity", ["get", "properties"]], 1],
+            ],
           },
         },
         {
@@ -689,12 +1040,20 @@ export function MapShell({
           source: "civil-detection-points",
           layout: { visibility: "none" },
           paint: {
-            "circle-color": "#f97316",
+            "circle-color": firmsAgeColor,
             "circle-radius": ["interpolate", ["linear"], ["zoom"], 5, 2.8, 11, 5.2, 14, 6.5],
             "circle-stroke-color": "#7a1f17",
             "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 5, 0.4, 11, 0.9],
-            "circle-opacity": 0.9,
-            "circle-stroke-opacity": 0.95,
+            "circle-opacity": [
+              "*",
+              0.9,
+              ["to-number", ["get", "firms_age_opacity", ["get", "properties"]], 1],
+            ],
+            "circle-stroke-opacity": [
+              "*",
+              0.95,
+              ["to-number", ["get", "firms_age_opacity", ["get", "properties"]], 1],
+            ],
           },
         },
       ],
@@ -735,7 +1094,7 @@ export function MapShell({
           const feature = featureIndexRef.current.get(id);
           if (feature) {
             popupRef.current?.remove();
-            popupRef.current = new maplibregl.Popup({
+            const popup = new maplibregl.Popup({
               closeButton: true,
               closeOnClick: true,
               maxWidth: "340px",
@@ -743,6 +1102,17 @@ export function MapShell({
               .setLngLat(event.lngLat)
               .setHTML(popupHtml(feature))
               .addTo(map);
+            const detailsButton = popup
+              .getElement()
+              .querySelector<HTMLButtonElement>("[data-incident-details]");
+            detailsButton?.addEventListener("click", () => {
+              const incidentId = detailsButton.dataset.incidentDetails;
+              if (incidentId) {
+                onFeatureDetailsRef.current?.(incidentId);
+                popup.remove();
+              }
+            });
+            popupRef.current = popup;
           }
         }
       });
@@ -772,25 +1142,35 @@ export function MapShell({
       const nextFeatureIndex = new Map<string, CivilFeature>();
       (Object.keys(layerIdsBySource) as CivilLayerName[]).forEach((layer) => {
         const source = map.getSource(`civil-${layer}`) as maplibregl.GeoJSONSource | undefined;
+        const layerData =
+          layer === "detections"
+            ? visibleFirmDetectionCollection(getLayerData(civilLayers, layer))
+            : getLayerData(civilLayers, layer);
         if (!source) {
           missingSource = true;
           return;
         }
-        getLayerData(civilLayers, layer).features.forEach((feature) => {
+        layerData.features.forEach((feature) => {
           nextFeatureIndex.set(feature.properties.id, feature);
         });
         source?.setData(
-          (isLayerVisible(visibleLayers, layer) ? getLayerData(civilLayers, layer) : emptyFeatureCollection) as unknown as Parameters<
+          (isLayerVisible(visibleLayers, layer)
+            ? layerData
+            : emptyFeatureCollection) as unknown as Parameters<
             maplibregl.GeoJSONSource["setData"]
           >[0],
         );
       });
-      const allDetections = getLayerData(civilLayers, "detections");
+      const allDetections = visibleFirmDetectionCollection(getLayerData(civilLayers, "detections"));
       const visibleDetections = isLayerVisible(visibleLayers, "detections")
         ? allDetections
         : emptyFeatureCollection;
-      const pointSource = map.getSource("civil-detection-points") as maplibregl.GeoJSONSource | undefined;
-      const pinSource = map.getSource("civil-detection-pins") as maplibregl.GeoJSONSource | undefined;
+      const pointSource = map.getSource("civil-detection-points") as
+        | maplibregl.GeoJSONSource
+        | undefined;
+      const pinSource = map.getSource("civil-detection-pins") as
+        | maplibregl.GeoJSONSource
+        | undefined;
       if (!pointSource || !pinSource) {
         missingSource = true;
         return missingSource;
@@ -801,7 +1181,9 @@ export function MapShell({
         >[0],
       );
       pinSource.setData(
-        detectionPinCollection(visibleDetections) as unknown as Parameters<maplibregl.GeoJSONSource["setData"]>[0],
+        detectionPinCollection(visibleDetections) as unknown as Parameters<
+          maplibregl.GeoJSONSource["setData"]
+        >[0],
       );
       featureIndexRef.current = nextFeatureIndex;
       return missingSource;
@@ -887,18 +1269,81 @@ export function MapShell({
     );
   }, [bbox]);
 
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !focusTarget) {
+      return;
+    }
+    if (focusTarget.bbox) {
+      const values = focusTarget.bbox.split(",").map((value) => Number(value.trim()));
+      if (values.length === 4 && values.every(Number.isFinite)) {
+        map.fitBounds(
+          [
+            [values[0], values[1]],
+            [values[2], values[3]],
+          ],
+          { padding: 72, duration: 800, maxZoom: 12 },
+        );
+      }
+      return;
+    }
+    const geometry = focusTarget.geometry;
+    if (!geometry) {
+      return;
+    }
+    if (geometry.type === "Point") {
+      map.easeTo({
+        center: [geometry.coordinates[0], geometry.coordinates[1]],
+        zoom: 12,
+        duration: 800,
+      });
+      return;
+    }
+    const bounds = new maplibregl.LngLatBounds();
+    const extendCoordinates = (coordinates: unknown): void => {
+      if (!Array.isArray(coordinates)) {
+        return;
+      }
+      if (
+        coordinates.length >= 2 &&
+        typeof coordinates[0] === "number" &&
+        typeof coordinates[1] === "number"
+      ) {
+        bounds.extend([coordinates[0], coordinates[1]]);
+        return;
+      }
+      coordinates.forEach(extendCoordinates);
+    };
+    extendCoordinates(geometry.coordinates);
+    if (!bounds.isEmpty()) {
+      map.fitBounds(bounds, { padding: 72, duration: 800, maxZoom: 13 });
+    }
+  }, [focusTarget]);
+
   return (
     <div className="relative h-full min-h-[520px] overflow-hidden rounded-lg border border-[#d7ddd8] bg-[#eef3ef] shadow-sm">
-      <div ref={containerRef} className="relative h-full min-h-[520px]" role="img" aria-label={`Mapa ${portal}`} />
+      <div
+        ref={containerRef}
+        className="relative h-full min-h-[520px]"
+        role="img"
+        aria-label={`Mapa ${portal}`}
+      />
+      {mapOverlay}
       {mapWarning ? (
         <div className="absolute left-3 top-3 max-w-[min(420px,calc(100%-24px))] rounded-md border border-[#b42318] bg-white px-3 py-2 text-sm text-[#17201b] shadow">
           {mapWarning}
         </div>
       ) : null}
       {isLoading ? (
-        <div className="pointer-events-none absolute left-3 top-3 flex max-w-[min(420px,calc(100%-24px))] items-center gap-3 rounded-md border border-[#d7ddd8] bg-white/95 px-3 py-2 text-sm font-semibold text-[#17201b] shadow">
-          <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#ff7a00] border-t-transparent" />
-          Carregant dades al mapa...
+        <div
+          className="pointer-events-none absolute inset-0 z-30 grid place-items-center bg-[#17201b]/20"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="flex max-w-[min(420px,calc(100%-24px))] items-center gap-3 rounded-md border border-[#b8c2bc] bg-white px-5 py-4 text-sm font-semibold text-[#17201b] shadow-xl">
+            <span className="h-5 w-5 animate-spin rounded-full border-2 border-[#ff7a00] border-t-transparent" />
+            Carregant Dades al Mapa
+          </div>
         </div>
       ) : null}
       <style jsx global>{`
@@ -937,6 +1382,34 @@ export function MapShell({
           min-width: 0;
           font-weight: 600;
           overflow-wrap: anywhere;
+        }
+        .map-popup-summary {
+          display: -webkit-box;
+          margin: 0;
+          padding: 10px 14px 5px;
+          overflow: hidden;
+          color: #303b35;
+          font-size: 12px;
+          line-height: 1.45;
+          -webkit-box-orient: vertical;
+          -webkit-line-clamp: 3;
+        }
+        .map-popup-details {
+          display: block;
+          width: calc(100% - 28px);
+          margin: 10px 14px 14px;
+          border: 0;
+          border-radius: 4px;
+          background: #1f6f50;
+          padding: 8px 10px;
+          color: #ffffff;
+          cursor: pointer;
+          font-size: 12px;
+          font-weight: 700;
+        }
+        .map-popup-details:focus-visible {
+          outline: 2px solid #1d5fd0;
+          outline-offset: 2px;
         }
       `}</style>
     </div>

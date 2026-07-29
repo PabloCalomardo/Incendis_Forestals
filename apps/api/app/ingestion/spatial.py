@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from typing import Any
 
 
@@ -27,6 +28,48 @@ def geojson_geometry_to_linestring_wkt(geometry: dict[str, Any]) -> str | None:
         if isinstance(first_line, list):
             return linestring_wkt(first_line)
     return None
+
+
+def geojson_geometry_to_polygon_wkt(geometry: dict[str, Any]) -> str | None:
+    geometry_type = geometry.get("type")
+    coordinates = geometry.get("coordinates")
+    if geometry_type == "Polygon" and isinstance(coordinates, list | tuple):
+        polygon = _polygon_coordinates_wkt(coordinates)
+        return f"POLYGON({polygon})" if polygon else None
+    if geometry_type == "MultiPolygon" and isinstance(coordinates, list | tuple):
+        polygons = [
+            _polygon_coordinates_wkt(polygon)
+            for polygon in coordinates
+            if isinstance(polygon, list | tuple)
+        ]
+        valid = [polygon for polygon in polygons if polygon]
+        return f"MULTIPOLYGON({', '.join(f'({polygon})' for polygon in valid)})" if valid else None
+    return None
+
+
+def _polygon_coordinates_wkt(coordinates: list[Any] | tuple[Any, ...]) -> str | None:
+    rings: list[str] = []
+    for raw_ring in coordinates:
+        if not isinstance(raw_ring, list | tuple):
+            continue
+        points: list[tuple[float, float]] = []
+        for coordinate in raw_ring:
+            if not isinstance(coordinate, list | tuple) or len(coordinate) < 2:
+                continue
+            try:
+                longitude = float(coordinate[0])
+                latitude = float(coordinate[1])
+            except (TypeError, ValueError):
+                continue
+            if math.isfinite(longitude) and math.isfinite(latitude):
+                points.append((longitude, latitude))
+        if len(points) < 3:
+            continue
+        if points[0] != points[-1]:
+            points.append(points[0])
+        if len(points) >= 4:
+            rings.append(f"({', '.join(f'{longitude} {latitude}' for longitude, latitude in points)})")
+    return ", ".join(rings) if rings else None
 
 
 def geometry_hash_payload(geometry: dict[str, Any]) -> str:

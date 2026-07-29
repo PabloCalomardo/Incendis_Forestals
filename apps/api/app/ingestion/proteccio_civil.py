@@ -76,6 +76,8 @@ class ProteccioCivilPlansConnector(BaseConnector[str, ProteccioCivilNoticeRecord
                 "phase": phase,
                 "active": active,
                 "source_url": self.config.plans_url,
+                "alert_level": self._phase_level(phase),
+                "area_bbox": "0.15,40.5,3.35,42.9",
             }
             records.append(
                 ProteccioCivilNoticeRecord(
@@ -83,7 +85,7 @@ class ProteccioCivilPlansConnector(BaseConnector[str, ProteccioCivilNoticeRecord
                     title=title,
                     body="\n".join(part for part in body_parts if part),
                     url=url or "https://analisi.transparenciacatalunya.cat/d/wj9c-j6vf",
-                    severity=phase.lower() if phase else None,
+                    severity=self._phase_level(phase),
                     observed_at=self._parse_datetime(self._str(row.get("fasedatahora"))),
                     original_metadata=metadata,
                     deduplication_hash=self._hash(external_id, metadata),
@@ -259,6 +261,16 @@ class ProteccioCivilPlansConnector(BaseConnector[str, ProteccioCivilNoticeRecord
                 return parsed.replace(tzinfo=UTC)
             except ValueError:
                 continue
+        return None
+
+    def _phase_level(self, phase: str | None) -> str | None:
+        normalized = (phase or "").strip().lower()
+        if "emerg" in normalized:
+            return "red"
+        if "alert" in normalized and "pre" not in normalized:
+            return "orange"
+        if "prealert" in normalized or "avis" in normalized or "avís" in normalized:
+            return "yellow"
         return None
 
     def _hash(self, external_id: str, payload: dict[str, Any]) -> str:

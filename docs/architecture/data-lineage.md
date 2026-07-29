@@ -31,7 +31,7 @@ flowchart TD
 
 ## Contradiccions
 
-El model permet que dues fonts mantinguin estats diferents per un mateix fenomen mitjançant `source_id`, `external_id`, timestamps i `provenance`. La resolucio o fusio no elimina cap registre; fases posteriors afegiran serveis de conflicte i confiança explicable.
+El model permet que dues fonts mantinguin estats diferents per un mateix fenomen mitjançant `source_id`, `external_id`, timestamps i `provenance`. La reconciliacio canonica no elimina cap registre; `confidence_assessments`, links i conflictes en conserven el raonament.
 
 ## Prediccions
 

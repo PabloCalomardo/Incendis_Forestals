@@ -41,9 +41,11 @@ router = APIRouter(prefix="/civil", tags=["civil"])
 DEFAULT_LIMIT = 50
 MAX_LIMIT = 200
 ESTIMATE_CURRENT_WINDOW = timedelta(hours=12)
+PERIMETER_CURRENT_WINDOW = timedelta(days=90)
 PUBLIC_CACHE_SECONDS = 30
 RATE_LIMIT_PER_MINUTE = 180
 IGN_MUNICIPALITIES_URL = "https://services1.arcgis.com/nCKYwcSONQTkPA4K/arcgis/rest/services/muni/FeatureServer/0/query"
+EXCLUDED_MUNICIPALITY_NAMES = {"agost"}
 
 
 @dataclass(frozen=True)
@@ -63,6 +65,7 @@ class CivilQuery:
     sort: str = "updated_desc"
     response_format: Literal["json", "geojson"] = "json"
     only_current: bool = True
+    perimeter_period: str | None = None
 
 
 def civil_query(
@@ -81,6 +84,7 @@ def civil_query(
     sort: str = Query(default="updated_desc", pattern="^(updated_desc|observed_desc|confidence_desc)$"),
     response_format: Literal["json", "geojson"] = Query(default="json", alias="format"),
     only_current: bool = True,
+    perimeter_period: str | None = Query(default=None, pattern="^(current|year|historic)(,(current|year|historic))*$"),
 ) -> CivilQuery:
     if (latitude is None) ^ (longitude is None):
         raise HTTPException(status_code=422, detail="latitude and longitude must be provided together")
@@ -102,6 +106,7 @@ def civil_query(
         sort=sort,
         response_format=response_format,
         only_current=only_current,
+        perimeter_period=perimeter_period,
     )
 
 
@@ -159,6 +164,25 @@ def apply_spatial_filters(statement: Select[Any], model: type[Any], query: Civil
 
 
 def _apply_common_filters(statement: Select[Any], model: type[Any], query: CivilQuery) -> Select[Any]:
+    if model is Incident:
+        statement = statement.where(
+            model.original_metadata["merged_into"].astext.is_(None),
+            func.coalesce(model.original_metadata["hidden"].as_boolean(), False).is_(False),
+        )
+    if model is FirePerimeter and query.perimeter_period:
+        now = datetime.now(UTC)
+        week_ago = now - timedelta(days=7)
+        year_ago = now - timedelta(days=365)
+        period_filters: list[ColumnElement[bool]] = []
+        for period in set(query.perimeter_period.split(",")):
+            if period == "current":
+                period_filters.append(model.observed_at >= week_ago)
+            elif period == "year":
+                period_filters.append(model.observed_at.between(year_ago, week_ago))
+            elif period == "historic":
+                period_filters.append(model.observed_at < year_ago)
+        if period_filters:
+            statement = statement.where(or_(*period_filters))
     if query.observed_from is not None and hasattr(model, "observed_at"):
         statement = statement.where(model.observed_at >= query.observed_from)
     if query.observed_to is not None and hasattr(model, "observed_at"):
@@ -179,7 +203,8 @@ def _apply_common_filters(statement: Select[Any], model: type[Any], query: Civil
         municipal_text = f"%{query.municipality}%"
         statement = statement.where(_jsonb_text(model).ilike(municipal_text))
     if query.only_current and hasattr(model, "provenance") and hasattr(model, "observed_at"):
-        cutoff = datetime.now(UTC) - ESTIMATE_CURRENT_WINDOW
+        current_window = PERIMETER_CURRENT_WINDOW if model is FirePerimeter else ESTIMATE_CURRENT_WINDOW
+        cutoff = datetime.now(UTC) - current_window
         statement = statement.where(
             or_(
                 model.provenance != ProvenanceType.ESTIMATED,
@@ -236,7 +261,8 @@ def _is_old_estimate(record: Any) -> bool:
         return True
     if observed_at.tzinfo is None:
         observed_at = observed_at.replace(tzinfo=UTC)
-    return bool(datetime.now(UTC) - observed_at > ESTIMATE_CURRENT_WINDOW)
+    current_window = PERIMETER_CURRENT_WINDOW if isinstance(record, FirePerimeter) else ESTIMATE_CURRENT_WINDOW
+    return bool(datetime.now(UTC) - observed_at > current_window)
 
 
 def _lineage(
@@ -273,7 +299,53 @@ def _lineage(
 
 
 def _incident_properties(record: Incident) -> dict[str, Any]:
-    return {"title": record.title, "status": str(record.status), "summary": record.summary}
+    metadata = record.original_metadata if isinstance(record.original_metadata, dict) else {}
+    merged_incident_ids = metadata.get("merged_incident_ids")
+    started_at = metadata.get("restriction_started_at")
+    ended_at = metadata.get("ended_at")
+    duration_seconds = None
+    if isinstance(started_at, str):
+        try:
+            start = datetime.fromisoformat(started_at)
+            end = datetime.fromisoformat(ended_at) if isinstance(ended_at, str) else datetime.now(UTC)
+            duration_seconds = max(0, int((end - start).total_seconds()))
+        except ValueError:
+            pass
+    return {
+        "title": record.title,
+        "status": str(record.status),
+        "summary": record.summary,
+        "osint": bool(metadata.get("osint")),
+        "event_type": metadata.get("event_type"),
+        "risk_type": metadata.get("risk_type"),
+        "es_alert_status": metadata.get("es_alert_status"),
+        "es_alert_message": metadata.get("es_alert_message"),
+        "instructions": metadata.get("instructions"),
+        "affected_locations": metadata.get("affected_locations"),
+        "started_at": started_at,
+        "ended_at": ended_at,
+        "duration_seconds": duration_seconds,
+        "fire_date": metadata.get("firedate"),
+        "final_date": _confirmed_extinction_date(metadata),
+        "extinction_confirmed": bool(_confirmed_extinction_date(metadata)),
+        "last_update": metadata.get("lastupdate"),
+        "country": metadata.get("country"),
+        "province": metadata.get("province"),
+        "commune": metadata.get("commune"),
+        "canonical_fire": bool(metadata.get("canonical_fire")),
+        "canonical_source": metadata.get("canonical_source"),
+        "hashtags": metadata.get("hashtags", []),
+        "firms_detection_count": metadata.get("firms_detection_count", 0),
+        "firms_oldest_detection_at": metadata.get("firms_oldest_detection_at"),
+        "firms_newest_detection_at": metadata.get("firms_newest_detection_at"),
+        "firms_total_frp_mw": metadata.get("firms_total_frp_mw"),
+        "area_hectares": metadata.get("area_ha"),
+        "extinction_operations_available": metadata.get("operational_extinction_status_available"),
+        "extinction_operations_note": metadata.get("operational_extinction_status_note"),
+        "effis_attributes_json": json.dumps(metadata.get("shapefile_attributes", {}), ensure_ascii=False, default=str),
+        "merged_incident_count": len(merged_incident_ids) if isinstance(merged_incident_ids, list) else 0,
+        "evidence_sources_json": json.dumps(metadata.get("evidence_sources", []), ensure_ascii=False),
+    }
 
 
 def _detection_properties(record: FireDetection) -> dict[str, Any]:
@@ -301,11 +373,55 @@ def _detection_properties(record: FireDetection) -> dict[str, Any]:
     }
 
 
+def _confirmed_extinction_date(metadata: dict[str, Any]) -> str | None:
+    confirmed_at = metadata.get("confirmed_extinction_at")
+    last_update = metadata.get("lastupdate")
+    if not metadata.get("extinction_confirmed") or not isinstance(confirmed_at, str) or not isinstance(last_update, str):
+        return None
+    try:
+        updated_at = datetime.fromisoformat(last_update.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if updated_at.tzinfo is None:
+        updated_at = updated_at.replace(tzinfo=UTC)
+    return confirmed_at if datetime.now(UTC) - updated_at <= timedelta(days=3) else None
+
+
 def _perimeter_properties(record: FirePerimeter) -> dict[str, Any]:
+    metadata = record.original_metadata if isinstance(record.original_metadata, dict) else {}
+    shapefile_attributes = metadata.get("shapefile_attributes")
+    if not isinstance(shapefile_attributes, dict):
+        shapefile_attributes = {}
+    observed_at = record.observed_at
+    if observed_at is not None and observed_at.tzinfo is None:
+        observed_at = observed_at.replace(tzinfo=UTC)
+    age = datetime.now(UTC) - observed_at if observed_at is not None else None
+    period = "current" if age is not None and age < timedelta(days=7) else "year"
+    if age is None or age >= timedelta(days=365):
+        period = "historic"
     return {
         "incident_id": str(record.incident_id),
         "area_hectares": record.area_hectares,
         "perimeter_kind": record.perimeter_kind,
+        "fire_date": metadata.get("firedate"),
+        "final_date": _confirmed_extinction_date(metadata),
+        "extinction_confirmed": bool(_confirmed_extinction_date(metadata)),
+        "last_update": metadata.get("lastupdate"),
+        "country": metadata.get("country"),
+        "province": metadata.get("province"),
+        "commune": metadata.get("commune"),
+        "extinction_operations_available": metadata.get("operational_extinction_status_available"),
+        "extinction_operations_note": metadata.get("operational_extinction_status_note"),
+        "effis_attributes_json": json.dumps(shapefile_attributes, ensure_ascii=False, default=str),
+        "perimeter_period": period,
+        "canonical_title": metadata.get("canonical_title"),
+        "canonical_summary": metadata.get("canonical_summary"),
+        "hashtags": metadata.get("hashtags", []),
+        "firms_detection_count": metadata.get("firms_detection_count", 0),
+        "firms_oldest_detection_at": metadata.get("firms_oldest_detection_at"),
+        "firms_newest_detection_at": metadata.get("firms_newest_detection_at"),
+        "firms_total_frp_mw": metadata.get("firms_total_frp_mw"),
+        "osint_publication_count": metadata.get("osint_publication_count", 0),
     }
 
 
@@ -335,6 +451,11 @@ def _restriction_properties(record: RestrictionZone) -> dict[str, Any]:
         "municipalities": metadata.get("municipalities"),
         "validity_status": metadata.get("validity_status"),
         "geometry_strategy": metadata.get("geometry_strategy"),
+        "channel": metadata.get("channel"),
+        "instruction": metadata.get("instruction"),
+        "alert_level": metadata.get("alert_level"),
+        "area": metadata.get("area"),
+        "expires_at": record.expires_at,
     }
 
 
@@ -349,12 +470,18 @@ def _road_properties(record: RoadSegment) -> dict[str, Any]:
 
 
 def _notice_properties(record: OfficialNotice) -> dict[str, Any]:
+    metadata = record.original_metadata if isinstance(record.original_metadata, dict) else {}
     return {
         "incident_id": str(record.incident_id) if record.incident_id else None,
         "title": record.title,
         "body": record.body,
         "url": record.url,
         "severity": record.severity,
+        "alert_level": metadata.get("alert_level") or record.severity,
+        "area": metadata.get("area"),
+        "area_bbox": metadata.get("area_bbox"),
+        "onset": metadata.get("onset"),
+        "expires": metadata.get("expires"),
     }
 
 
@@ -593,6 +720,32 @@ async def list_detections(
     return await _list_records(request, session, query, FireDetection, "fire_detection", _detection_properties, if_none_match)
 
 
+@router.get("/detections/timeline", dependencies=[Depends(rate_limit)])
+async def detections_timeline(
+    request: Request,
+    session: CivilSession,
+    bbox: str | None = Query(default=None, description="west,south,east,north in EPSG:4326"),
+    min_confidence: float | None = Query(default=None, ge=0, le=1),
+    if_none_match: CivilIfNoneMatch = None,
+) -> Response:
+    observed_minute = func.date_trunc("minute", FireDetection.observed_at).label("observed_at")
+    statement = select(observed_minute, func.count(FireDetection.id)).where(FireDetection.observed_at.is_not(None))
+    if min_confidence is not None:
+        statement = statement.where(FireDetection.confidence >= min_confidence)
+    if bbox:
+        west, south, east, north = _parse_bbox(bbox)
+        envelope = geofunc.ST_MakeEnvelope(west, south, east, north, 4326)
+        statement = statement.where(geofunc.ST_Intersects(FireDetection.geometry, envelope))
+    statement = statement.group_by(observed_minute).order_by(observed_minute.asc()).limit(5_000)
+    rows = (await session.execute(statement)).all()
+    payload = {
+        "data_type": "firms_timeline",
+        "items": [{"observed_at": observed_at, "count": count} for observed_at, count in rows],
+        "warnings": [],
+    }
+    return await _public_response(request, payload, if_none_match, f"civil:{request.url.path}?{request.url.query}")
+
+
 @router.get("/perimeters", dependencies=[Depends(rate_limit)])
 async def list_perimeters(
     request: Request,
@@ -611,6 +764,25 @@ async def list_evacuations(
     if_none_match: CivilIfNoneMatch = None,
 ) -> Response:
     return await _list_records(request, session, query, EvacuationZone, "evacuation_zone", _evacuation_properties, if_none_match)
+
+
+@router.get("/es-alerts", dependencies=[Depends(rate_limit)])
+async def list_es_alerts(
+    request: Request,
+    session: CivilSession,
+    query: CivilQueryDep,
+    if_none_match: CivilIfNoneMatch = None,
+) -> Response:
+    es_alert_query = CivilQuery(**{**query.__dict__, "source": "ES-Alert", "only_current": True})
+    return await _list_records(
+        request,
+        session,
+        es_alert_query,
+        RestrictionZone,
+        "es_alert_restriction",
+        _restriction_properties,
+        if_none_match,
+    )
 
 
 @router.get("/restrictions", dependencies=[Depends(rate_limit)])
@@ -734,6 +906,8 @@ async def municipality_lookup(
             if extent is None:
                 continue
             name = str(attributes.get("NAMEUNIT") or "")
+            if name.strip().casefold() in EXCLUDED_MUNICIPALITY_NAMES:
+                continue
             municipalities.append(
                 {
                     "id": str(object_id),

@@ -1,110 +1,50 @@
 # Model de dades
 
-Fase 2 implementa el domini persistent base. El model preserva originals, versions, procedencia i prediccions traçables. Les geometries internes usen PostGIS amb SRID 4326, mantenint `original_crs` quan la font arriba amb un CRS diferent.
+PostgreSQL/PostGIS conserva dades originals, versions, procedencia i relacions derivades. Geometria interna: SRID 4326; `original_crs` preserva el sistema de la font.
 
-## Entitats
+## Nucli
 
-```mermaid
-erDiagram
-    DataSource ||--o{ DataIngestionRun : records
-    DataSource ||--o{ Incident : provides
-    DataSource ||--o{ FireDetection : provides
-    DataSource ||--o{ FirePerimeter : provides
-    DataSource ||--o{ OfficialNotice : publishes
-    DataSource ||--o{ RoadSegment : provides
-    Incident ||--o{ IncidentVersion : versions
-    Incident ||--o{ FireDetection : groups
-    Incident ||--o{ FirePerimeter : has
-    Incident ||--o{ OfficialNotice : references
-    Incident ||--o{ EvacuationZone : affects
-    Incident ||--o{ RestrictionZone : restricts
-    Incident ||--o{ RoadIncident : affects
-    RoadSegment ||--o{ RoadIncident : has
-    ModelExecution ||--o{ SmokeForecast : produces
-    ModelExecution ||--o{ RiskForecast : produces
-    Role ||--o{ User : grants
-    User ||--o{ AuditEvent : performs
+- `DataSource`: font, autoritat, tipus i metadades.
+- `DataIngestionRun`: estat, comptadors, errors i referencia al raw.
+- `Incident` i `IncidentVersion`: identitat canonica i historial.
+- `FireDetection`: deteccio FIRMS puntual i dades del sensor.
+- `FirePerimeter`: poligon EFFIS i tots els atributs del shapefile.
+- `OfficialNotice`, `EvacuationZone`, `RestrictionZone` i `EsAlertRecord`.
+- `RoadSegment` i `RoadIncident`.
+- `EmergencyPublication`: evidencia OSINT, text original, classificacio, ubicacions i revisio.
+- `WeatherObservation`, `WeatherForecast`, `RiskForecast` i `SmokeForecast`.
 
-    DataSource {
-      uuid id
-      string name
-      enum source_type
-      string authority
-      jsonb source_metadata
-    }
-    Incident {
-      uuid id
-      geometry geometry
-      enum provenance
-      enum status
-      float confidence
-      int version
-      jsonb original_metadata
-    }
-    IncidentVersion {
-      uuid id
-      uuid incident_id
-      int version
-      jsonb snapshot
-    }
-    ModelExecution {
-      uuid id
-      string model_name
-      string model_version
-      jsonb input_refs
-      string input_hash
-    }
-    SmokeForecast {
-      uuid id
-      uuid model_execution_id
-      geometry geometry
-      enum provenance
-      int horizon_hours
-      float uncertainty
-    }
-```
+## Relacions d'incendi
 
-## Camps comuns
+Un `Incident` pot agregar diversos perimetres EFFIS, deteccions FIRMS, avisos i publicacions. `original_metadata` conserva membres agrupats, area total, hashtags, municipis, evidencies d'extincio i motius d'associacio. La relacio es reversible i no elimina la font original.
 
-Les entitats amb traçabilitat incorporen:
+`EmergencyPublication` conserva:
 
-- `id`
-- `source_id`
-- `external_id`
-- `provenance`
-- `observed_at`
-- `published_at`
-- `received_at`
-- `expires_at`
-- `verification_status`
-- `confidence`
-- `version`
-- `original_metadata`
-- `deduplication_hash`
-- `created_at`
-- `updated_at`
-- `deleted_at`
+- tipus d'esdeveniment i risc;
+- autoritat, URL i tipus de font;
+- publicacio, inici i final de vigencia;
+- instruccions i text literal disponible;
+- estat ES-Alert;
+- toponims, geometria oficial, metode d'inferencia i precisio;
+- confiança i estat de revisio humana.
 
-Les entitats geoespacials incorporen:
+## Camps transversals
 
-- `geometry`
-- `original_crs`
-- index GIST sobre `geometry`
+`source_id`, `external_id`, `provenance`, `observed_at`, `published_at`, `received_at`, `expires_at`, `verification_status`, `confidence`, `version`, `original_metadata`, `deduplication_hash`, `created_at`, `updated_at` i `deleted_at`.
 
-## Regles d'integritat
+## Integritat
 
-- `provenance` admet `official`, `observed`, `estimated` i `unverified`.
-- `confidence` queda acotada entre 0 i 1 quan existeix.
-- `smoke_forecasts` i `risk_forecasts` no poden tenir procedencia oficial.
-- Totes les prediccions apunten a `model_executions`.
-- `incident_versions` conserva snapshots per no sobreescriure historia.
-- `deleted_at` habilita soft delete sense perdre originals.
+- Procedencia limitada a `official`, `observed`, `estimated` o `unverified`.
+- Confiança entre 0 i 1.
+- Prediccions de risc i fum mai tenen procedencia oficial.
+- Un poligon EFFIS antic no confirma per si sol l'extincio.
+- Una zona administrativa utilitza el seu limit oficial; no es dibuixen poligons artificials si nomes es coneix el toponim.
+- Soft delete i versions eviten perdre historial.
 
 ## Indexs
 
-- GIST: totes les taules amb `geometry`.
-- Temporals: `observed_at`, `published_at`, `received_at`, `expires_at`.
-- Procedencia: `provenance`.
-- Deduplicacio: `deduplication_hash`.
-- Model: `model_name`, `model_version`, `input_hash`.
-- Auditoria: `user_id`, `occurred_at`, `resource_type`, `resource_id`.
+- GiST sobre geometries.
+- Temps d'observacio, publicacio, recepcio i expiracio.
+- Procedencia, estat i font.
+- Hash de deduplicacio.
+- Claus d'incident, revisio OSINT i identificadors externs.

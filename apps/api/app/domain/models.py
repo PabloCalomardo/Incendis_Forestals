@@ -88,7 +88,7 @@ class DataIngestionRun(Base, IdMixin, TimestampMixin):
     metrics: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)
 
 
-class Incident(Base, IdMixin, TimestampMixin, LineageMixin, SpatialMixin):
+class Incident(Base, IdMixin, TimestampMixin, LineageMixin):
     __tablename__ = "incidents"
     __table_args__ = (
         CheckConstraint(
@@ -102,6 +102,8 @@ class Incident(Base, IdMixin, TimestampMixin, LineageMixin, SpatialMixin):
         Enum(IncidentStatus, name="incident_status", values_callable=enum_values), nullable=False
     )
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    geometry: Mapped[str | None] = mapped_column(Geometry(geometry_type="GEOMETRY", srid=4326), nullable=True)
+    original_crs: Mapped[str] = mapped_column(String(64), default="EPSG:4326", nullable=False)
 
 
 class IncidentVersion(Base, IdMixin, TimestampMixin):
@@ -153,6 +155,44 @@ class OfficialNotice(Base, IdMixin, TimestampMixin, LineageMixin):
     body: Mapped[str] = mapped_column(Text, nullable=False)
     url: Mapped[str | None] = mapped_column(Text, nullable=True)
     severity: Mapped[str | None] = mapped_column(String(80), nullable=True)
+
+
+class EmergencyPublication(Base, IdMixin, TimestampMixin):
+    __tablename__ = "emergency_publications"
+    __table_args__ = (
+        CheckConstraint("confidence >= 0 AND confidence <= 1", name="ck_emergency_publications_confidence"),
+    )
+
+    source_id: Mapped[UUID] = mapped_column(ForeignKey("data_sources.id"), nullable=False)
+    incident_id: Mapped[UUID | None] = mapped_column(ForeignKey("incidents.id"), nullable=True)
+    external_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    deduplication_hash: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
+    url: Mapped[str] = mapped_column(Text, nullable=False)
+    source_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    authority: Mapped[str] = mapped_column(String(180), nullable=False)
+    language: Mapped[str] = mapped_column(String(12), nullable=False)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    original_text: Mapped[str] = mapped_column(Text, nullable=False)
+    event_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    risk_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    action_state: Mapped[str] = mapped_column(String(40), nullable=False)
+    es_alert_status: Mapped[str] = mapped_column(String(40), nullable=False)
+    published_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    starts_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    instructions: Mapped[str | None] = mapped_column(Text, nullable=True)
+    es_alert_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    locations: Mapped[list[JSONDict]] = mapped_column(JSONB, default=list, nullable=False)
+    geometry: Mapped[str | None] = mapped_column(Geometry(geometry_type="GEOMETRY", srid=4326), nullable=True)
+    geometry_inference_method: Mapped[str] = mapped_column(String(120), nullable=False)
+    spatial_precision: Mapped[str] = mapped_column(String(80), nullable=False)
+    evidence_rank: Mapped[int] = mapped_column(Integer, nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    review_status: Mapped[str] = mapped_column(String(40), nullable=False)
+    review_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_by_user_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    raw_metadata: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)
 
 
 class EvacuationZone(Base, IdMixin, TimestampMixin, LineageMixin, SpatialMixin):

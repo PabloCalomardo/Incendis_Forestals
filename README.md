@@ -4,7 +4,9 @@ Plataforma per integrar informacio d'incendis forestals, conservar-ne la procede
 
 ## Prioritat actual
 
-El desenvolupament per fases ha finalitzat. Primer es completara una versio publicable del Dashboard Civil (`/civil`). El Dashboard per a Professionals queda ajornat fins que la versio Civil sigui acceptada. L'estat consolidat es a `docs/project-status.md`.
+El desenvolupament per fases ha finalitzat. Primer es completara una versio publicable del Dashboard Civil (`/civil`). El Dashboard per a Professionals queda ajornat fins que la versio Civil sigui acceptada. L'estat operatiu i el punt de represa son a [`docs/current-state.md`](docs/current-state.md).
+
+Index documental: [`docs/README.md`](docs/README.md).
 
 ## Serveis
 
@@ -20,7 +22,7 @@ El desenvolupament per fases ha finalitzat. Primer es completara una versio publ
 ## Inici rapid
 
 1. Instal·la Node.js 22 LTS o superior.
-2. Revisa `.env.example` i copia'l a `.env` si vols valors locals propis.
+2. Copia `.env.example` a `.env` i substitueix els placeholders locals. `.env` conte secrets i no s'ha de versionar.
 3. Instal·la dependències:
 
 ```bash
@@ -40,7 +42,7 @@ Aquesta ordre arrenca l'API FastAPI i el frontend Next.js. Per arrencar tota la 
 npm run dev:docker
 ```
 
-Per Fase 2 i migracions PostGIS reals, instal·la Docker Desktop o una base PostgreSQL amb PostGIS equivalent. Sense Docker, el portal i l'API poden arrencar, però `/ready` i `npm run migrate` no tindran base de dades completa.
+Per executar migracions PostGIS reals, instal·la Docker Desktop o una base PostgreSQL amb PostGIS equivalent. Sense Docker, el portal i l'API poden arrencar, pero `/ready` i `npm run migrate` no tindran base de dades completa.
 
 `npm run migrate` executa Alembic dins Docker Compose. Usa `npm run migrate:local` nomes si tens una base local i has ajustat `DATABASE_URL` perquè apunti a `localhost`.
 
@@ -79,7 +81,7 @@ Si vols una drecera semblant a make sense instal·lar GNU make:
 
 ## Variables d'entorn
 
-Les variables estan documentades a `.env.example`. Les claus reals no s'han de commitar.
+Les variables i valors locals segurs es documenten a `.env.example`. `.env` es local i no s'ha de commitar.
 
 - `NEXT_PUBLIC_API_BASE_URL`: URL publica del backend per al navegador.
 - `API_INTERNAL_BASE_URL`: URL interna del backend per renderitzat server-side dins Docker.
@@ -116,7 +118,9 @@ Les variables estan documentades a `.env.example`. Les claus reals no s'han de c
 
 ## Estat
 
-La plataforma executable inclou el Dashboard Civil, API publica, ingestio real NASA FIRMS, AEMET, IGN, DGT/NAP DATEX, Proteccio Civil/CECAT i xarxa viaria CNIG local a PostGIS. El portal professional, autenticacio OIDC i eines operatives avancades continuen pendents.
+La plataforma executable inclou Dashboard Civil, API publica, FIRMS, EFFIS, AEMET/CAP, DGT/SCT/DT-GV DATEX,
+eTraffic, Proteccio Civil/CECAT, ES-Alert autenticat, OSINT/Nitter i xarxa viaria CNIG local. EFFIS, FIRMS i OSINT es
+reconcilien en incidents canonics. Consulta [`docs/current-state.md`](docs/current-state.md) per limitacions i pendents.
 
 ## Preparacio GitHub
 

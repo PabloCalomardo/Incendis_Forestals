@@ -1,9 +1,15 @@
-# Tests
+# Proves
 
-Els tests de Fase 1 viuen a:
+- `apps/api/tests`: API Civil, domini, migracions, connectors, EFFIS, OSINT i reconciliacio.
+- `workers/tests`: registre i comportament de tasques Celery.
+- `apps/web/src/**/*.test.tsx|ts`: portal Civil, client API i interaccions.
 
-- `apps/api/tests`: endpoints de salut, readiness i versionat.
-- `workers/tests`: tasques Celery de prova.
-- `apps/web/src/**/*.test.tsx`: components i pagines del frontend.
+Ordres principals:
 
-Les proves d'integracio amb serveis reals s'executen amb Docker Compose un cop instal·lades les dependecies.
+```powershell
+npm test
+npm run lint
+npm run typecheck
+```
+
+Ultima validacio completa documentada: [`../docs/current-state.md`](../docs/current-state.md). Les proves que necessiten PostgreSQL/PostGIS, Redis o MinIO s'han d'executar amb Docker Compose.

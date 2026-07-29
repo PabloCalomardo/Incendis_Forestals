@@ -1,0 +1,182 @@
+[
+  {
+    "name": "Ministerio del Interior - Sala de prensa",
+    "authority": "Ministerio del Interior",
+    "url": "https://www.interior.gob.es/opencms/es/prensa/noticias/",
+    "source_type": "official",
+    "format": "html",
+    "reliability": 1.0,
+    "enabled": true
+  },
+  {
+    "name": "Proteccio Civil Catalunya - Actualitat",
+    "authority": "Generalitat de Catalunya",
+    "url": "https://interior.gencat.cat/ca/actualitat/",
+    "source_type": "official",
+    "format": "html",
+    "reliability": 1.0,
+    "enabled": true
+  },
+  {
+    "name": "Euskadi - Emergencias 112",
+    "authority": "Eusko Jaurlaritza",
+    "url": "https://www.euskadi.eus/emergencias-112/",
+    "source_type": "official",
+    "format": "html",
+    "reliability": 1.0,
+    "enabled": true
+  },
+  {
+    "name": "112 Comunitat Valenciana",
+    "authority": "Generalitat Valenciana",
+    "url": "https://112cv.gva.es/va/",
+    "source_type": "official",
+    "format": "html",
+    "reliability": 1.0,
+    "enabled": true
+  },
+  {
+    "name": "Emergencias 112 Andalucia",
+    "authority": "Junta de Andalucia",
+    "url": "https://www.juntadeandalucia.es/presidencia/portavoz/emergencias112/",
+    "source_type": "official",
+    "format": "html",
+    "reliability": 1.0,
+    "enabled": true
+  },
+  {
+    "name": "Emergencias 112 Aragon",
+    "authority": "Gobierno de Aragon",
+    "url": "https://www.aragon.es/-/emergencias-112",
+    "source_type": "official",
+    "format": "html",
+    "reliability": 1.0,
+    "enabled": true
+  },
+  {
+    "name": "SEPA 112 Asturias",
+    "authority": "Principado de Asturias",
+    "url": "https://www.112asturias.es/",
+    "source_type": "official",
+    "format": "html",
+    "reliability": 1.0,
+    "enabled": true
+  },
+  {
+    "name": "Emergencies 112 Illes Balears",
+    "authority": "Govern de les Illes Balears",
+    "url": "https://www.caib.es/sites/emergencies112/ca/inici/",
+    "source_type": "official",
+    "format": "html",
+    "reliability": 1.0,
+    "enabled": true
+  },
+  {
+    "name": "Seguridad y Emergencias Canarias",
+    "authority": "Gobierno de Canarias",
+    "url": "https://www3.gobiernodecanarias.org/noticias/category/presidencia/seguridad-y-emergencias/",
+    "source_type": "official",
+    "format": "html",
+    "reliability": 1.0,
+    "enabled": true
+  },
+  {
+    "name": "112 Cantabria",
+    "authority": "Gobierno de Cantabria",
+    "url": "https://112.cantabria.es/",
+    "source_type": "official",
+    "format": "html",
+    "reliability": 1.0,
+    "enabled": true
+  },
+  {
+    "name": "Servicio 112 Castilla-La Mancha",
+    "authority": "Junta de Comunidades de Castilla-La Mancha",
+    "url": "https://112.castillalamancha.es/",
+    "source_type": "official",
+    "format": "html",
+    "reliability": 1.0,
+    "enabled": true
+  },
+  {
+    "name": "Emergencias 112 Castilla y Leon",
+    "authority": "Junta de Castilla y Leon",
+    "url": "https://112.jcyl.es/",
+    "source_type": "official",
+    "format": "html",
+    "reliability": 1.0,
+    "enabled": true
+  },
+  {
+    "name": "112 Extremadura",
+    "authority": "Junta de Extremadura",
+    "url": "https://112.juntaex.es/",
+    "source_type": "official",
+    "format": "html",
+    "reliability": 1.0,
+    "enabled": true
+  },
+  {
+    "name": "AXEGA 112 Galicia",
+    "authority": "Xunta de Galicia",
+    "url": "https://www.axega112.gal/",
+    "source_type": "official",
+    "format": "html",
+    "reliability": 1.0,
+    "enabled": true
+  },
+  {
+    "name": "ASEM 112 Madrid",
+    "authority": "Comunidad de Madrid",
+    "url": "https://www.comunidad.madrid/servicios/seguridad-emergencias",
+    "source_type": "official",
+    "format": "html",
+    "reliability": 1.0,
+    "enabled": true
+  },
+  {
+    "name": "112 Region de Murcia",
+    "authority": "Region de Murcia",
+    "url": "https://www.112rmurcia.es/",
+    "source_type": "official",
+    "format": "html",
+    "reliability": 1.0,
+    "enabled": true
+  },
+  {
+    "name": "Emergencias Navarra",
+    "authority": "Gobierno de Navarra",
+    "url": "https://www.navarra.es/es/seguridad-y-emergencias",
+    "source_type": "official",
+    "format": "html",
+    "reliability": 1.0,
+    "enabled": true
+  },
+  {
+    "name": "SOS Rioja 112",
+    "authority": "Gobierno de La Rioja",
+    "url": "https://www.larioja.org/emergencias-112/es",
+    "source_type": "official",
+    "format": "html",
+    "reliability": 1.0,
+    "enabled": true
+  },
+  {
+    "name": "Proteccion Civil Ceuta",
+    "authority": "Ciudad Autonoma de Ceuta",
+    "url": "https://www.ceuta.es/ceuta/proteccion-civil",
+    "source_type": "official",
+    "format": "html",
+    "reliability": 1.0,
+    "enabled": true
+  },
+  {
+    "name": "Seguridad Ciudadana Melilla",
+    "authority": "Ciudad Autonoma de Melilla",
+    "url": "https://www.melilla.es/",
+    "source_type": "official",
+    "format": "html",
+    "reliability": 1.0,
+    "enabled": true
+  }
+]

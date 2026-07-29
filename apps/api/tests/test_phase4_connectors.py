@@ -1,11 +1,15 @@
+import json
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
 
 from app.ingestion.aemet import AemetConnector, AemetRawPayload
+from app.ingestion.aemet_alerts import AemetAlertsConnector
 from app.ingestion.base import ValidationError
 from app.ingestion.config import (
+    AemetAlertsConnectorConfig,
     AemetConnectorConfig,
     DatexConnectorConfig,
     EtrafficConnectorConfig,
@@ -36,6 +40,14 @@ def aemet_config(api_key: str = "test-key") -> AemetConnectorConfig:
         max_retries=2,
         forecast_municipalities=["28079"],
         forecast_locations={"28079": {"name": "Madrid", "latitude": 40.4168, "longitude": -3.7038}},
+    )
+
+
+def aemet_alerts_config() -> AemetAlertsConnectorConfig:
+    return AemetAlertsConnectorConfig(
+        feed_url="https://www.aemet.test/CAP_AFAE_wah_RSS.xml",
+        timeout_seconds=1,
+        max_retries=2,
     )
 
 
@@ -233,6 +245,38 @@ def test_datex_parses_nonstandard_dgt_pk_response() -> None:
     assert _pk_xy_results(_dgt_json_payload(raw)) == [(380414.6, 4493761.41)]
 
 
+@pytest.mark.asyncio
+async def test_datex_cnig_fallback_returns_merged_road_subsection() -> None:
+    session = AsyncMock()
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = json.dumps(
+        {
+            "type": "LineString",
+            "coordinates": [
+                [1.4173568, 41.270477],
+                [1.438, 41.263],
+                [1.4633018, 41.262024],
+            ],
+        }
+    )
+    session.execute.return_value = result
+    connector = DatexTrafficConnector(session, datex_config())
+
+    route = await connector._cnig_merged_road_subsection(
+        "TV-2042",
+        [1.4173568, 41.270477],
+        [1.4633018, 41.262024],
+    )
+
+    assert route == [
+        [1.4173568, 41.270477],
+        [1.438, 41.263],
+        [1.4633018, 41.262024],
+    ]
+    parameters = session.execute.await_args.args[1]
+    assert parameters["road_ref"] == "TV-2042"
+
+
 def encode_etraffic(payload: str) -> str:
     import base64
 
@@ -277,6 +321,31 @@ async def test_datex_fetch_reads_configured_feeds() -> None:
     await client.aclose()
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("connector", "lock_target"),
+    [
+        (DatexTrafficConnector(DummySession(), datex_config()), "app.ingestion.datex.try_acquire_traffic_ingestion_lock"),  # type: ignore[arg-type]
+        (DgtEtrafficConnector(DummySession(), etraffic_config()), "app.ingestion.etraffic.try_acquire_traffic_ingestion_lock"),  # type: ignore[arg-type]
+    ],
+)
+async def test_traffic_ingestion_skips_when_shared_lock_is_held(
+    connector: DatexTrafficConnector | DgtEtrafficConnector,
+    lock_target: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lock = AsyncMock(return_value=False)
+    fetch = AsyncMock()
+    monkeypatch.setattr(lock_target, lock)
+    monkeypatch.setattr(connector, "fetch", fetch)
+
+    result = await connector.execute()
+
+    assert result.status == "skipped_locked"
+    assert result.metrics.errors == ["Another traffic ingestion is already running"]
+    fetch.assert_not_awaited()
+
+
 def test_proteccio_civil_normalizes_active_plan_notices() -> None:
     connector = ProteccioCivilPlansConnector(DummySession(), proteccio_civil_config())  # type: ignore[arg-type]
     raw = read_fixture("proteccio_civil_plans.json")
@@ -289,5 +358,40 @@ def test_proteccio_civil_normalizes_active_plan_notices() -> None:
     assert len(unique) == 1
     assert duplicates == 1
     assert records[0].title == "INFOCAT ALERTA"
-    assert records[0].severity == "alerta"
+    assert records[0].severity == "orange"
     assert records[0].url == "https://documents.dadesobertes.gencat.cat/cecat/docs/I-124785.pdf"
+
+
+def test_aemet_alerts_normalizes_cap_level_and_area() -> None:
+    connector = AemetAlertsConnector(DummySession(), aemet_alerts_config())  # type: ignore[arg-type]
+    cap = """<?xml version="1.0" encoding="UTF-8"?>
+    <alert xmlns="urn:oasis:names:tc:emergency:cap:1.2">
+      <identifier>2.49.0.0.724.0.ES.20260728092947.example</identifier>
+      <sent>2026-07-28T09:29:47-00:00</sent>
+      <info>
+        <language>es-ES</language>
+        <event>Aviso de temperaturas máximas de nivel naranja</event>
+        <severity>Severe</severity>
+        <headline>Aviso naranja. Campiña cordobesa</headline>
+        <description>Temperatura máxima: 42 ºC.</description>
+        <instruction>Tome precauciones.</instruction>
+        <web>https://www.aemet.es/es/eltiempo/prediccion/avisos</web>
+        <onset>2026-07-28T13:00:00+02:00</onset>
+        <expires>2026-07-28T20:59:59+02:00</expires>
+        <parameter><valueName>AEMET-Meteoalerta nivel</valueName><value>naranja</value></parameter>
+        <area>
+          <areaDesc>Campiña cordobesa</areaDesc>
+          <polygon>37.5,-5.2 38.0,-5.2 38.0,-4.5 37.5,-4.5 37.5,-5.2</polygon>
+        </area>
+      </info>
+    </alert>"""
+    raw = json.dumps({"feed_url": aemet_alerts_config().feed_url, "messages": [{"url": "https://aemet.test/alert.xml", "xml": cap}]})
+
+    connector.validate(raw)
+    records = connector.normalize(raw)
+
+    assert len(records) == 1
+    assert records[0].severity == "orange"
+    assert records[0].title == "Aviso naranja. Campiña cordobesa"
+    assert records[0].original_metadata["area"] == "Campiña cordobesa"
+    assert records[0].original_metadata["area_bbox"] == "-5.200000,37.500000,-4.500000,38.000000"

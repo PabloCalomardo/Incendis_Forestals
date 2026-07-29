@@ -1,27 +1,29 @@
 # Integracions
 
-Aquest document reflecteix l'estat consolidat de les integracions. El desenvolupament ja no avanca per fases; la prioritat actual es el Dashboard Civil publicable.
+Estat detallat: [`../current-state.md`](../current-state.md).
 
-## Estat
+## Actives
 
-- NASA FIRMS: implementat amb API Area CSV, MAP_KEY per variable d'entorn, persistencia d'originals, dead-letter, reprocessament, deduplicacio i registre d'execucio.
-- EFFIS: planificat, no implementat.
-- AEMET: implementat amb OpenData, observacions, prediccio municipal horaria, raw i deduplicacio.
-- DGT/NAP DATEX II: implementat com a connector principal estatal per restriccions/incidencies viaries; combina DGT v3.7, SCT i DT-GV.
-- DGT/NAP Mapa de Trafico: implementat via connector eTraffic.
-- DGT/NAP Mapa de Movilidad: recurs web registrat; pendent de connector descarregable estable.
-- MITECO: planificat, no implementat.
-- IGN/CNIG: cerca estatal de municipis i xarxa viaria IGR-RT 2026 local importada a PostGIS, amb trams i punts quilometrics oficials.
-- OpenStreetMap: implementat connector Overpass per carreteres per area petita; extractes Geofabrik documentats per importacions grans.
-- Proteccio Civil / CECAT: implementat connector d'avisos oficials de plans actius; no genera geometria d'evacuacio.
+- **NASA FIRMS**: deteccions cada 15 minuts, raw, deduplicacio, reprocessament i cronologia diaria.
+- **EFFIS Burnt Areas**: SHAPEZIP diari, atributs complets i perimetres canonics.
+- **AEMET OpenData**: observacions i prediccio municipal horaria.
+- **AEMET CAP/Meteoalerta**: avisos groc/taronja/vermell per tot Espanya.
+- **DGT/SCT/DT-GV DATEX II**: incidencies viaries cada 5 minuts.
+- **DGT eTraffic**: font complementaria de transit.
+- **IGN/CNIG**: municipis oficials i xarxa IGR-RT local per geometria viaria.
+- **OpenStreetMap**: fallback Overpass per arees petites.
+- **Proteccio Civil/CECAT**: plans actius de Catalunya.
+- **ES-Alert**: registre autenticat i reconstruccio OSINT d'evidencies publiques.
+- **OSINT**: portals 112, organismes, RSS, Nitter, X amb credencials i revisio humana.
 
-La implementacio de carreteres/restriccions queda tancada temporalment: DATEX aporta les afectacions i CNIG resol localment la forma de la carretera per nom i PK. Els serveis externs nomes actuen com a fallback.
+## Pendents o limitades
 
-## Requisits comuns
+- **MITECO**: no implementat; consulta [`miteco.todo.md`](miteco.todo.md).
+- **Mapa de Movilidad DGT**: recurs registrat, sense endpoint descarregable estable.
+- **X**: necessita Bearer Token; Nitter es la passarel.la principal i TwitterViewer queda per revisio humana.
+- **ES-Alert**: no existeix un feed public complet; no es pot garantir exhaustivitat.
+- **EFFIS**: no publica tasques d'extincio ni confirma l'estat operatiu.
 
-- credencials via variables d'entorn;
-- retries i timeouts;
-- persistencia de resposta original;
-- deduplicacio;
-- metriques;
-- documentacio de llicencia, cobertura, retard i limitacions.
+## Regles comunes
+
+Credencials via entorn, raw preservat, retries/timeouts, deduplicacio, procedencia, metriques i registre d'execucio. Una execucio fallida, parcial o anormalment buida no reemplaça l'ultima instantania valida.

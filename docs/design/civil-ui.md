@@ -1,51 +1,39 @@
-# Civil UI
+# Disseny del Dashboard Civil
 
-The Civil UI prioritizes clear public information over operational detail.
+## Composicio
 
-## Visual Rules
+El mapa ocupa la superficie principal. No hi ha barra lateral exterior.
 
-- Official data uses solid shapes or lines.
-- Estimated data uses dashed lines, hollow/neutral symbols, warning copy, and lower opacity when stale.
-- Observed satellite detections use fixed sensor-footprint polygons, interior group pins and an optional original-hotspot layer.
-- Old data is dimmed and labelled through traceability warnings.
-- Color is never the only signal: line style, text labels, opacity, and badges reinforce meaning.
+- Cerca municipal: cantonada superior esquerra del mapa.
+- Incidents i avisos/cronologia: dos panells laterals interns, compactes i scrollejables.
+- Filtre de capes: control intern del mapa.
+- Llegenda: baix a la dreta, oberta inicialment i tancable.
+- Detall: panell complet sota el mapa, vinculat a `Veure tota la informacio`.
+- Carrega: popup modal centrat dins del mapa.
 
-## Layout
+Els controls superiors drets deixen espai als botons `+` i `-` de MapLibre. Els panells tenen alçada estable i scroll intern; el seu contingut no allarga la pagina.
 
-Mobile first:
+## Llenguatge visual
 
-- map first;
-- controls and detail remain available below as a bottom-flow panel;
-- all essential information is present in lists.
+- Dades oficials: formes solides i font visible.
+- Dades estimades o inferides: advertiment, procedencia i menor certesa visual.
+- FIRMS: deteccions del dia seleccionat; punts originals opcionals i apagats inicialment.
+- EFFIS: contorn i farciment gris d'area cremada, clicable a tot l'interior.
+- Avisos X/Nitter: blau, diferenciats dels incidents d'incendi.
+- Carreteres: taronja per incendi/obstacle ambiental; lila per la resta.
+- Avisos meteorologics: groc, taronja o vermell segons nivell CAP/Proteccio Civil.
 
-Desktop:
+El color mai es l'unic indicador: etiqueta, font, estat i data reforcen el significat.
 
-- compact 300 px left-side controls that fit their content without vertical stretching;
-- map and public sections on the right, with the map occupying about 72% of viewport height;
-- dense but readable operational-public layout.
+## Interaccio
 
-## Legend
+- Clicar una entrada o geometria centra el mapa a la seva zona valida.
+- Cap seleccio pot provocar zoom a tota Espanya per falta de geometria.
+- Popup d'incendi: resum curt, dates confirmades, hashtag i boto de detall.
+- El panell inferior concentra cronologia, FIRMS, EFFIS, instruccions, fonts i posts.
+- Els toggles canvien visibilitat MapLibre sense reconstruir el mapa.
+- Pan i zoom actualitzen URL sense navegacio Next.js ni refetch.
 
-The legend is always rendered next to the map controls. It explains:
+## Responsive i accessibilitat
 
-- observed detections;
-- official perimeters;
-- estimated perimeters;
-- FIRMS areas, red group pins and original hotspots;
-- road restrictions: orange for fire/environmental obstruction and translucent purple for all others;
-- stale data.
-
-The dashed contextual road network is intentionally absent. Roads and restrictions share the public category `Restriccions a Carreteres`.
-
-## Interaction And Performance
-
-- Feature details open in a popup anchored to the selected map geometry.
-- Municipality search performs a map zoom and does not filter other records.
-- Layer toggles update MapLibre source visibility in place.
-- Pan and zoom do not trigger API reloads or Next.js navigation.
-- Public responses are cached client-side for five minutes.
-
-## Copy
-
-The portal avoids presenting estimates as facts. When an item is estimated or has warnings, the detail panel states that
-it must not be treated as an official notice.
+En mobil, els controls es mantenen accessibles sobre el mapa amb dimensions limitades i scroll. Llistes i detall ofereixen equivalent textual a les geometries. Inputs i botons son natius, tenen focus visible i el text no depen del color.
